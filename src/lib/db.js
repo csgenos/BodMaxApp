@@ -15,6 +15,9 @@ export const updateProfile = async (userId, d) => {
   if (error) throw error
   return data
 }
+export const updateLastActive = async (userId) => {
+  await supabase.from('profiles').update({ last_active: new Date().toISOString() }).eq('id', userId)
+}
 
 // ── SESSIONS ─────────────────────────────────────────────
 export const saveSession = async (userId, session) => {
@@ -109,6 +112,50 @@ export const checkAndUpdatePR = async (userId, exercise, muscleGroup, weight, re
   return false
 }
 
+// ── TEMPLATES ─────────────────────────────────────────────
+export const getTemplates = async (userId) => {
+  const { data } = await supabase.from('templates').select('*')
+    .eq('user_id', userId).order('created_at', { ascending: false })
+  return data || []
+}
+export const saveTemplate = async (userId, name, exercises) => {
+  const { data, error } = await supabase.from('templates')
+    .insert({ user_id: userId, name, exercises })
+    .select().single()
+  if (error) throw error
+  return data
+}
+export const deleteTemplate = async (id) => {
+  await supabase.from('templates').delete().eq('id', id)
+}
+
+// ── PROGRESS PHOTOS ───────────────────────────────────────
+export const getProgressPhotos = async (userId) => {
+  const { data } = await supabase.from('progress_photos').select('*')
+    .eq('user_id', userId).order('date', { ascending: false })
+  return data || []
+}
+export const addProgressPhoto = async (userId, file, weight, notes) => {
+  const ext = file.name.split('.').pop() || 'jpg'
+  const path = `${userId}/${Date.now()}.${ext}`
+  const { error: uploadErr } = await supabase.storage
+    .from('progress-photos').upload(path, file, { upsert: false })
+  if (uploadErr) throw uploadErr
+  const { data: { publicUrl } } = supabase.storage.from('progress-photos').getPublicUrl(path)
+  const date = new Date().toISOString().split('T')[0]
+  const { data, error } = await supabase.from('progress_photos')
+    .insert({ user_id: userId, date, photo_url: publicUrl, weight: weight || null, notes: notes || null })
+    .select().single()
+  if (error) throw error
+  return data
+}
+export const deleteProgressPhoto = async (id, photoUrl) => {
+  // Extract storage path from URL (everything after /progress-photos/)
+  const match = photoUrl.match(/progress-photos\/(.+)$/)
+  if (match) await supabase.storage.from('progress-photos').remove([match[1]])
+  await supabase.from('progress_photos').delete().eq('id', id)
+}
+
 // ── SOCIAL ────────────────────────────────────────────────
 export const searchUsers = async (query, currentUserId) => {
   const { data } = await supabase.from('profiles').select('id, name, username')
@@ -133,9 +180,9 @@ export const getFriendRequests = async (userId) => {
 }
 export const getFriends = async (userId) => {
   const [{ data: sent }, { data: recv }] = await Promise.all([
-    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username)')
+    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username, last_active)')
       .eq('user_id', userId).eq('status', 'accepted'),
-    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username)')
+    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username, last_active)')
       .eq('friend_id', userId).eq('status', 'accepted'),
   ])
   return [

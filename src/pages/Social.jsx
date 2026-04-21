@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus } from '../lib/db'
+import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest } from '../lib/db'
 import { MUSCLE_GROUPS } from '../lib/ranks'
+
+const todayStr = () => new Date().toISOString().split('T')[0]
+const isActiveToday = (lastActive) => lastActive && lastActive.split('T')[0] === todayStr()
 
 export default function Social() {
   const { profile } = useAuth()
@@ -31,8 +34,7 @@ export default function Social() {
   const doSearch = async (q) => {
     setSearch(q)
     if (q.length < 2) { setSearchResults([]); return }
-    const res = await searchUsers(q, profile.id)
-    setSearchResults(res)
+    setSearchResults(await searchUsers(q, profile.id))
   }
 
   const addFriend = async (userId) => {
@@ -49,30 +51,34 @@ export default function Social() {
   }
 
   if (selectedFriend) return (
-    <div style={{ padding:'52px 20px 24px' }}>
-      <button onClick={() => setSelectedFriend(null)} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:14, fontWeight:600, marginBottom:20, padding:0 }}>← Back</button>
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:28 }}>
-        <Avatar name={selectedFriend.name} />
+    <div style={{ padding: '52px 20px 24px' }}>
+      <button onClick={() => setSelectedFriend(null)} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 14, fontWeight: 600, marginBottom: 20, padding: 0 }}>← Back</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+        <Avatar name={selectedFriend.name} active={isActiveToday(selectedFriend.last_active)} />
         <div>
-          <div style={{ fontWeight:700, fontSize:18 }}>{selectedFriend.name}</div>
-          <div style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{selectedFriend.username}</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>{selectedFriend.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>@{selectedFriend.username}</div>
+          {isActiveToday(selectedFriend.last_active) && (
+            <div style={{ fontSize: 10, color: '#4a9a4a', fontWeight: 700, marginTop: 3 }}>● Active today</div>
+          )}
         </div>
       </div>
-      <div className="label" style={{ marginBottom:12 }}>PERSONAL RECORDS</div>
-      {friendPRs.length === 0 ? <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>No PRs yet</div>
+      <div className="label" style={{ marginBottom: 12 }}>PERSONAL RECORDS</div>
+      {friendPRs.length === 0
+        ? <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>No PRs yet</div>
         : MUSCLE_GROUPS.map(g => {
           const gPRs = friendPRs.filter(p => p.muscle_group === g)
           if (!gPRs.length) return null
           return (
-            <div key={g} style={{ marginBottom:20 }}>
-              <div className="label" style={{ color:'var(--accent)', marginBottom:8 }}>{g.toUpperCase()}</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            <div key={g} style={{ marginBottom: 20 }}>
+              <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>{g.toUpperCase()}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {gPRs.map(pr => (
-                  <div key={pr.id} className="card" style={{ padding:14, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span style={{ fontWeight:600, fontSize:14 }}>{pr.exercise}</span>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:20, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{pr.weight}</div>
-                      <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                  <div key={pr.id} className="card" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{pr.exercise}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · lbs</div>
                     </div>
                   </div>
                 ))}
@@ -83,43 +89,47 @@ export default function Social() {
     </div>
   )
 
+  const activeToday = friends.filter(f => isActiveToday(f.last_active))
+
   return (
-    <div style={{ paddingBottom:24 }}>
-      <div style={{ padding:'52px 20px 0', borderBottom:'1px solid var(--border)' }}>
-        <h2 style={{ fontSize:26, fontWeight:800, marginBottom:16 }}>Social</h2>
-        <div style={{ display:'flex' }}>
-          {['feed','friends','add'].map(t => (
-            <button key={t} onClick={()=>setTab(t)} style={{ flex:1, background:'none', border:'none', borderBottom:`2px solid ${tab===t?'var(--accent)':'transparent'}`, color:tab===t?'var(--accent)':'var(--text-muted)', padding:'10px 0', fontSize:'9px', letterSpacing:'3px', fontFamily:'var(--mono)', fontWeight:600, textTransform:'uppercase' }}>{t === 'add' ? `ADD${requests.length?' ('+requests.length+')':''}` : t.toUpperCase()}</button>
+    <div style={{ paddingBottom: 24 }}>
+      <div style={{ padding: '52px 20px 0', borderBottom: '1px solid var(--border)' }}>
+        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Social</h2>
+        <div style={{ display: 'flex' }}>
+          {['feed', 'friends', 'add'].map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`, color: tab === t ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '9px', letterSpacing: '3px', fontFamily: 'var(--mono)', fontWeight: 600, textTransform: 'uppercase' }}>
+              {t === 'add' ? `ADD${requests.length ? ' (' + requests.length + ')' : ''}` : t.toUpperCase()}
+            </button>
           ))}
         </div>
       </div>
 
-      <div style={{ padding:20 }}>
+      <div style={{ padding: 20 }}>
 
         {/* FEED */}
         {tab === 'feed' && (
           loading ? <Loader /> : feed.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'40px 0' }}>
-              <div style={{ fontSize:32, marginBottom:12 }}>👥</div>
-              <div style={{ color:'var(--text-muted)', fontSize:13 }}>No activity yet — add friends to see their workouts</div>
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No activity yet — add friends to see their workouts</div>
             </div>
           ) : feed.map(s => {
-            const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
-            const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
+            const vol = (s.exercises || []).reduce((sum, ex) => sum + (ex.sets || []).reduce((s2, set) => s2 + ((+set.weight || 0) * (+set.reps || 0)), 0), 0)
+            const groups = [...new Set((s.exercises || []).map(e => e.muscle_group || e.muscleGroup))].filter(Boolean)
             const user = s.profiles
             return (
-              <div key={s.id} className="card" style={{ padding:16, marginBottom:8 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
-                  <Avatar name={user?.name||'?'} size={32} />
+              <div key={s.id} className="card" style={{ padding: 16, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <Avatar name={user?.name || '?'} size={32} />
                   <div>
-                    <div style={{ fontWeight:700, fontSize:14 }}>{user?.name}</div>
-                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{user?.username}</div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{user?.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>@{user?.username}</div>
                   </div>
-                  <div style={{ marginLeft:'auto', fontSize:11, color:'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+                  <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
                 </div>
-                <div style={{ fontWeight:600, fontSize:14, marginBottom:3 }}>{groups.join(', ')||'Workout'}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-                  {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration?` · ${Math.floor(s.duration/60)}m`:''}
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{groups.join(', ') || 'Workout'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                  {(s.exercises || []).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
                 </div>
               </div>
             )
@@ -129,16 +139,38 @@ export default function Social() {
         {/* FRIENDS */}
         {tab === 'friends' && (
           <div>
-            {friends.length === 0 ? (
-              <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>No friends yet — go to Add tab</div>
-            ) : friends.map(f => (
-              <div key={f.id} className="card" style={{ padding:16, marginBottom:8, display:'flex', alignItems:'center', gap:12 }}>
-                <Avatar name={f.name} />
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{f.name}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{f.username}</div>
+            {/* Active today strip */}
+            {activeToday.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div className="label" style={{ color: '#4a9a4a', marginBottom: 10 }}>● ACTIVE TODAY</div>
+                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
+                  {activeToday.map(f => (
+                    <div key={f.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 56 }}>
+                      <div style={{ position: 'relative' }}>
+                        <Avatar name={f.name} size={48} active />
+                      </div>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center', maxWidth: 56, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name.split(' ')[0]}</span>
+                    </div>
+                  ))}
                 </div>
-                <button onClick={() => viewFriendPRs(f)} style={{ background:'var(--accent-low)', border:`1px solid var(--accent)`, borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'var(--accent)', fontSize:12, fontWeight:700 }}>PRs</button>
+              </div>
+            )}
+
+            {friends.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>No friends yet — go to Add tab</div>
+            ) : friends.map(f => (
+              <div key={f.id} className="card" style={{ padding: 16, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ position: 'relative' }}>
+                  <Avatar name={f.name} active={isActiveToday(f.last_active)} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{f.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>@{f.username}</div>
+                  {isActiveToday(f.last_active) && (
+                    <div style={{ fontSize: 10, color: '#4a9a4a', fontWeight: 700, marginTop: 2 }}>● Active today</div>
+                  )}
+                </div>
+                <button onClick={() => viewFriendPRs(f)} style={{ background: 'var(--accent-low)', border: `1px solid var(--accent)`, borderRadius: 'var(--radius-sm)', padding: '8px 14px', color: 'var(--accent)', fontSize: 12, fontWeight: 700 }}>PRs</button>
               </div>
             ))}
           </div>
@@ -148,40 +180,39 @@ export default function Social() {
         {tab === 'add' && (
           <div>
             {requests.length > 0 && (
-              <div style={{ marginBottom:24 }}>
-                <div className="label" style={{ marginBottom:10 }}>FRIEND REQUESTS</div>
+              <div style={{ marginBottom: 24 }}>
+                <div className="label" style={{ marginBottom: 10 }}>FRIEND REQUESTS</div>
                 {requests.map(r => (
-                  <div key={r.id} className="card" style={{ padding:14, marginBottom:8, display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:700, fontSize:14 }}>{r.profiles?.name}</div>
-                      <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{r.profiles?.username}</div>
+                  <div key={r.id} className="card" style={{ padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{r.profiles?.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>@{r.profiles?.username}</div>
                     </div>
-                    <button onClick={() => handleAccept(r.id)} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px 12px', color:'#fff', fontWeight:700, fontSize:12 }}>✓</button>
-                    <button onClick={() => handleDecline(r.id)} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'8px 12px', color:'var(--text-dim)', fontSize:12 }}>✕</button>
+                    <button onClick={() => handleAccept(r.id)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: '#fff', fontWeight: 700, fontSize: 12 }}>✓</button>
+                    <button onClick={() => handleDecline(r.id)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: 'var(--text-dim)', fontSize: 12 }}>✕</button>
                   </div>
                 ))}
               </div>
             )}
-
-            <div className="label" style={{ marginBottom:10 }}>SEARCH BY USERNAME</div>
+            <div className="label" style={{ marginBottom: 10 }}>SEARCH BY USERNAME</div>
             <input
-              style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'13px 16px', fontSize:15, width:'100%', marginBottom:12 }}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '13px 16px', fontSize: 15, width: '100%', marginBottom: 12 }}
               placeholder="Search username..."
               value={search}
               onChange={e => doSearch(e.target.value)}
             />
             {searchResults.map(u => (
-              <div key={u.id} className="card" style={{ padding:14, marginBottom:8, display:'flex', alignItems:'center', gap:10 }}>
+              <div key={u.id} className="card" style={{ padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Avatar name={u.name} />
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700, fontSize:14 }}>{u.name}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{u.username}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>@{u.username}</div>
                 </div>
-                <button onClick={() => addFriend(u.id)} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'#fff', fontWeight:700, fontSize:12 }}>ADD</button>
+                <button onClick={() => addFriend(u.id)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '8px 14px', color: '#fff', fontWeight: 700, fontSize: 12 }}>ADD</button>
               </div>
             ))}
             {search.length >= 2 && searchResults.length === 0 && (
-              <div style={{ textAlign:'center', padding:'20px 0', color:'var(--text-muted)', fontSize:13 }}>No users found</div>
+              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: 13 }}>No users found</div>
             )}
           </div>
         )}
@@ -190,18 +221,23 @@ export default function Social() {
   )
 }
 
-function Avatar({ name, size=40 }) {
+function Avatar({ name, size = 40, active = false }) {
   return (
-    <div style={{ width:size, height:size, borderRadius:'50%', background:'var(--accent-low)', border:'1px solid var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:size*0.4, fontWeight:800, color:'var(--accent)', flexShrink:0 }}>
-      {name?.[0]?.toUpperCase()}
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--accent-low)', border: `1px solid ${active ? '#4a9a4a' : 'var(--accent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.4, fontWeight: 800, color: 'var(--accent)' }}>
+        {name?.[0]?.toUpperCase()}
+      </div>
+      {active && (
+        <div style={{ position: 'absolute', bottom: 1, right: 1, width: size * 0.28, height: size * 0.28, background: '#4a9a4a', borderRadius: '50%', border: '2px solid var(--bg)' }} />
+      )}
     </div>
   )
 }
 
 function Loader() {
   return (
-    <div style={{ display:'flex', justifyContent:'center', padding:'40px 0' }}>
-      <div style={{ width:24, height:24, border:'2px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+      <div style={{ width: 24, height: 24, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
