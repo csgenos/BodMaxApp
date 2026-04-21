@@ -1,0 +1,165 @@
+import { supabase } from './supabase'
+
+// ── PROFILE ──────────────────────────────────────────────
+export const getProfile = async (userId) => {
+  const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+  return data
+}
+export const createProfile = async (userId, d) => {
+  const { data, error } = await supabase.from('profiles').insert({ id: userId, ...d }).select().single()
+  if (error) throw error
+  return data
+}
+export const updateProfile = async (userId, d) => {
+  const { data, error } = await supabase.from('profiles').update(d).eq('id', userId).select().single()
+  if (error) throw error
+  return data
+}
+
+// ── SESSIONS ─────────────────────────────────────────────
+export const saveSession = async (userId, session) => {
+  const { data: sess, error } = await supabase
+    .from('sessions')
+    .insert({ user_id: userId, date: session.date, duration: session.duration, completed_at: session.completedAt || new Date().toISOString() })
+    .select().single()
+  if (error) throw error
+
+  for (let i = 0; i < (session.exercises || []).length; i++) {
+    const ex = session.exercises[i]
+    const { data: exRow } = await supabase
+      .from('exercises')
+      .insert({ session_id: sess.id, name: ex.name, muscle_group: ex.muscleGroup, order_index: i })
+      .select().single()
+    if (!exRow) continue
+    const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
+    for (let j = 0; j < validSets.length; j++) {
+      await supabase.from('sets').insert({ exercise_id: exRow.id, weight: +validSets[j].weight, reps: +validSets[j].reps, set_number: j + 1 })
+    }
+  }
+  for (const c of (session.cardio || [])) {
+    await supabase.from('cardio').insert({ session_id: sess.id, type: c.type, duration: c.duration, distance: c.distance || null, calories: c.calories || null })
+  }
+  return sess.id
+}
+
+export const getSessions = async (userId) => {
+  const { data } = await supabase
+    .from('sessions')
+    .select('*, exercises(*, sets(*)), cardio(*)')
+    .eq('user_id', userId)
+    .not('completed_at', 'is', null)
+    .order('date', { ascending: false })
+  return data || []
+}
+
+export const getLastExerciseSets = async (userId, exerciseName) => {
+  const { data: sessionRows } = await supabase
+    .from('sessions').select('id').eq('user_id', userId)
+    .not('completed_at', 'is', null).order('date', { ascending: false }).limit(30)
+  if (!sessionRows?.length) return null
+  const ids = sessionRows.map(s => s.id)
+  const { data: exRows } = await supabase
+    .from('exercises').select('id, session_id, sets(*)')
+    .eq('name', exerciseName).in('session_id', ids)
+  if (!exRows?.length) return null
+  const sorted = exRows.sort((a, b) => ids.indexOf(a.session_id) - ids.indexOf(b.session_id))
+  return sorted[0]?.sets || null
+}
+
+// ── DIET ─────────────────────────────────────────────────
+export const getDietByDate = async (userId, date) => {
+  const { data } = await supabase.from('diet_entries').select('*')
+    .eq('user_id', userId).eq('date', date).order('created_at', { ascending: false })
+  return data || []
+}
+export const addDietEntry = async (userId, entry) => {
+  const { data, error } = await supabase.from('diet_entries').insert({ user_id: userId, ...entry }).select().single()
+  if (error) throw error
+  return data
+}
+export const deleteDietEntry = async (id) => {
+  await supabase.from('diet_entries').delete().eq('id', id)
+}
+
+// ── WEIGHT ────────────────────────────────────────────────
+export const getWeightLog = async (userId) => {
+  const { data } = await supabase.from('weight_log').select('*').eq('user_id', userId).order('date', { ascending: true })
+  return data || []
+}
+export const addWeight = async (userId, date, weight) => {
+  await supabase.from('weight_log').insert({ user_id: userId, date, weight })
+}
+
+// ── PRs ───────────────────────────────────────────────────
+export const getPRs = async (userId) => {
+  const { data } = await supabase.from('personal_records').select('*').eq('user_id', userId).order('muscle_group')
+  return data || []
+}
+export const checkAndUpdatePR = async (userId, exercise, muscleGroup, weight, reps) => {
+  const { data: ex } = await supabase.from('personal_records').select('*').eq('user_id', userId).eq('exercise', exercise).maybeSingle()
+  const date = new Date().toISOString()
+  if (!ex) {
+    await supabase.from('personal_records').insert({ user_id: userId, exercise, muscle_group: muscleGroup, weight: +weight, reps: +reps, date })
+    return true
+  }
+  if (+weight > ex.weight || (+weight === ex.weight && +reps > ex.reps)) {
+    await supabase.from('personal_records').update({ weight: +weight, reps: +reps, date, muscle_group: muscleGroup }).eq('id', ex.id)
+    return true
+  }
+  return false
+}
+
+// ── SOCIAL ────────────────────────────────────────────────
+export const searchUsers = async (query, currentUserId) => {
+  const { data } = await supabase.from('profiles').select('id, name, username')
+    .ilike('username', `%${query}%`).neq('id', currentUserId).limit(10)
+  return data || []
+}
+export const sendFriendRequest = async (userId, friendId) => {
+  const { error } = await supabase.from('friendships').insert({ user_id: userId, friend_id: friendId, status: 'pending' })
+  if (error) throw error
+}
+export const acceptFriendRequest = async (id) => {
+  await supabase.from('friendships').update({ status: 'accepted' }).eq('id', id)
+}
+export const declineFriendRequest = async (id) => {
+  await supabase.from('friendships').delete().eq('id', id)
+}
+export const getFriendRequests = async (userId) => {
+  const { data } = await supabase.from('friendships')
+    .select('id, user_id, profiles!friendships_user_id_fkey(name, username)')
+    .eq('friend_id', userId).eq('status', 'pending')
+  return data || []
+}
+export const getFriends = async (userId) => {
+  const [{ data: sent }, { data: recv }] = await Promise.all([
+    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username)')
+      .eq('user_id', userId).eq('status', 'accepted'),
+    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username)')
+      .eq('friend_id', userId).eq('status', 'accepted'),
+  ])
+  return [
+    ...(sent || []).map(f => f.profiles),
+    ...(recv || []).map(f => f.profiles),
+  ].filter(Boolean)
+}
+export const getFriendsFeed = async (userId) => {
+  const friends = await getFriends(userId)
+  if (!friends.length) return []
+  const { data } = await supabase
+    .from('sessions')
+    .select('*, exercises(*, sets(*)), cardio(*), profiles!sessions_user_id_fkey(name, username)')
+    .in('user_id', friends.map(f => f.id))
+    .not('completed_at', 'is', null)
+    .order('date', { ascending: false }).limit(40)
+  return data || []
+}
+export const getFriendPRs = async (friendId) => {
+  const { data } = await supabase.from('personal_records').select('*').eq('user_id', friendId).order('muscle_group')
+  return data || []
+}
+export const getFriendshipStatus = async (userId, friendId) => {
+  const { data } = await supabase.from('friendships').select('id, status, user_id')
+    .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`).maybeSingle()
+  return data
+}
