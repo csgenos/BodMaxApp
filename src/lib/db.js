@@ -24,20 +24,24 @@ export const saveSession = async (userId, session) => {
     .select().single()
   if (error) throw error
 
-  for (let i = 0; i < (session.exercises || []).length; i++) {
-    const ex = session.exercises[i]
+  await Promise.all((session.exercises || []).map(async (ex, i) => {
     const { data: exRow } = await supabase
       .from('exercises')
       .insert({ session_id: sess.id, name: ex.name, muscle_group: ex.muscleGroup, order_index: i })
       .select().single()
-    if (!exRow) continue
+    if (!exRow) return
     const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
-    for (let j = 0; j < validSets.length; j++) {
-      await supabase.from('sets').insert({ exercise_id: exRow.id, weight: +validSets[j].weight, reps: +validSets[j].reps, set_number: j + 1 })
+    if (validSets.length) {
+      await supabase.from('sets').insert(
+        validSets.map((s, j) => ({ exercise_id: exRow.id, weight: +s.weight, reps: +s.reps, set_number: j + 1 }))
+      )
     }
-  }
-  for (const c of (session.cardio || [])) {
-    await supabase.from('cardio').insert({ session_id: sess.id, type: c.type, duration: c.duration, distance: c.distance || null, calories: c.calories || null })
+  }))
+
+  if ((session.cardio || []).length) {
+    await supabase.from('cardio').insert(
+      session.cardio.map(c => ({ session_id: sess.id, type: c.type, duration: c.duration, distance: c.distance || null, calories: c.calories || null }))
+    )
   }
   return sess.id
 }
@@ -62,7 +66,8 @@ export const getLastExerciseSets = async (userId, exerciseName) => {
     .from('exercises').select('id, session_id, sets(*)')
     .eq('name', exerciseName).in('session_id', ids)
   if (!exRows?.length) return null
-  const sorted = exRows.sort((a, b) => ids.indexOf(a.session_id) - ids.indexOf(b.session_id))
+  const idRank = new Map(ids.map((id, i) => [id, i]))
+  const sorted = exRows.sort((a, b) => (idRank.get(a.session_id) ?? Infinity) - (idRank.get(b.session_id) ?? Infinity))
   return sorted[0]?.sets || null
 }
 
@@ -143,16 +148,16 @@ export const getFriends = async (userId) => {
     ...(recv || []).map(f => f.profiles),
   ].filter(Boolean)
 }
-export const getFriendsFeed = async (userId) => {
+export const getFriendsFeedAndFriends = async (userId) => {
   const friends = await getFriends(userId)
-  if (!friends.length) return []
+  if (!friends.length) return { feed: [], friends: [] }
   const { data } = await supabase
     .from('sessions')
     .select('*, exercises(*, sets(*)), cardio(*), profiles!sessions_user_id_fkey(name, username)')
     .in('user_id', friends.map(f => f.id))
     .not('completed_at', 'is', null)
     .order('date', { ascending: false }).limit(40)
-  return data || []
+  return { feed: data || [], friends }
 }
 export const getFriendPRs = async (friendId) => {
   const { data } = await supabase.from('personal_records').select('*').eq('user_id', friendId).order('muscle_group')

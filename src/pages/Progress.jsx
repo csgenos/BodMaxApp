@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getWeightLog, addWeight, getPRs, getSessions } from '../lib/db'
-import { calcVolumes, getRank, MUSCLE_GROUPS } from '../lib/ranks'
+import { calcVolumes, getRank, MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
 const TT = { contentStyle:{ background:'#141414', border:'1px solid #222', borderRadius:8, color:'#f0f0f0', fontSize:12 }, cursor:{ stroke:'#333' } }
@@ -36,22 +36,19 @@ export default function Progress() {
     weight: e.weight
   }))
 
-  // Volume over time (last 8 weeks)
-  const volumeByWeek = () => {
+  const volumeByWeek = useMemo(() => {
     const weeks = {}
     sessions.slice(0, 56).forEach(s => {
       const d = new Date(s.date)
       const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay())
       const key = weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})
       if (!weeks[key]) weeks[key] = 0
-      const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
-      weeks[key] += vol
+      weeks[key] += calcSessionVolume(s)
     })
     return Object.entries(weeks).slice(-8).map(([week,vol]) => ({ week, vol: Math.round(vol/1000*10)/10 })).reverse()
-  }
+  }, [sessions])
 
-  // Session frequency (days per week over last 8 weeks)
-  const freqData = () => {
+  const freqData = useMemo(() => {
     const weeks = {}
     sessions.slice(0, 56).forEach(s => {
       const d = new Date(s.date)
@@ -61,7 +58,7 @@ export default function Progress() {
       weeks[key].add(s.date?.split('T')[0])
     })
     return Object.entries(weeks).slice(-8).map(([week,days]) => ({ week, days: days.size })).reverse()
-  }
+  }, [sessions])
 
   const volumeData = MUSCLE_GROUPS.map(g => ({ name: g.slice(0,4).toUpperCase(), vol: Math.round((volumes[g]||0)/1000*10)/10 }))
   const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'12px 14px', fontSize:15, outline:'none' }
@@ -88,9 +85,9 @@ export default function Progress() {
               ))}
             </div>
             <ChartCard title="WEEKLY VOLUME (k lbs)">
-              {volumeByWeek().length > 1 ? (
+              {volumeByWeek.length > 1 ? (
                 <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={volumeByWeek()}>
+                  <BarChart data={volumeByWeek}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
                     <XAxis dataKey="week" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} />
                     <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} unit="k" />
@@ -101,9 +98,9 @@ export default function Progress() {
               ) : <Empty>Not enough data yet</Empty>}
             </ChartCard>
             <ChartCard title="SESSIONS PER WEEK">
-              {freqData().length > 1 ? (
+              {freqData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={freqData()}>
+                  <BarChart data={freqData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
                     <XAxis dataKey="week" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} />
                     <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -148,7 +145,7 @@ export default function Progress() {
             )}
             {weightLog.length === 0 && <Empty>No weight logged yet</Empty>}
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {[...weightLog].reverse().slice(0,15).map((e,i) => (
+              {weightLog.slice(-15).reverse().map((e,i) => (
                 <div key={i} className="card" style={{ padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <span style={{ fontSize:13, color:'var(--text-dim)' }}>{new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</span>
                   <span style={{ fontSize:20, fontWeight:700, color:'var(--accent)', fontFamily:'var(--mono)' }}>{e.weight} <span style={{ fontSize:11, fontWeight:400, color:'var(--text-muted)' }}>{profile?.unit||'lbs'}</span></span>

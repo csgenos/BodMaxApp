@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getSessions, saveSession, checkAndUpdatePR, getLastExerciseSets } from '../lib/db'
-import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES } from '../lib/ranks'
+import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
 
 const uid = () => Math.random().toString(36).slice(2)
 
@@ -55,15 +55,14 @@ export default function Session() {
     const sess = { ...active, completedAt: new Date().toISOString(), duration: elapsed }
     try {
       await saveSession(profile.id, sess)
-      const prs = []
-      for (const ex of sess.exercises) {
-        for (const set of ex.sets) {
-          if (set.weight && set.reps) {
-            const isNew = await checkAndUpdatePR(profile.id, ex.name, ex.muscleGroup, +set.weight, +set.reps)
-            if (isNew && !prs.includes(ex.name)) prs.push(ex.name)
-          }
-        }
-      }
+      const prChecks = sess.exercises.flatMap(ex =>
+        ex.sets
+          .filter(set => set.weight && set.reps)
+          .map(set => checkAndUpdatePR(profile.id, ex.name, ex.muscleGroup, +set.weight, +set.reps)
+            .then(isNew => isNew ? ex.name : null))
+      )
+      const results = await Promise.all(prChecks)
+      const prs = [...new Set(results.filter(Boolean))]
       await load()
       setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
     } catch(e) { alert('Save failed: ' + e.message) }
@@ -71,7 +70,6 @@ export default function Session() {
   }
 
   const fmtTime = s => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`
-  const sessVol = exs => (exs||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0), 0)
 
   const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text)', padding:'8px 6px', fontSize:15, textAlign:'center', width:'100%', fontFamily:'var(--mono)' }
 
@@ -82,7 +80,7 @@ export default function Session() {
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:28 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
       <div style={{ display:'flex', gap:10, marginBottom:24 }}>
-        <StatPill label="VOLUME" value={`${Math.round(sessVol(summary.exercises)).toLocaleString()} lbs`} />
+        <StatPill label="VOLUME" value={`${Math.round(calcSessionVolume(summary)).toLocaleString()} lbs`} />
         <StatPill label="SETS" value={(summary.exercises||[]).reduce((s,e)=>s+e.sets.length,0)} />
       </div>
       {newPRs.length > 0 && (
@@ -219,7 +217,7 @@ export default function Session() {
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {sessions.map(s => {
-            const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
+            const vol = calcSessionVolume(s)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
             return (
               <div key={s.id} className="card" style={{ padding:16 }}>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus } from '../lib/db'
-import { MUSCLE_GROUPS } from '../lib/ranks'
+import { searchUsers, sendFriendRequest, getFriendsFeedAndFriends, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus } from '../lib/db'
+import { MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
 
 export default function Social() {
   const { profile } = useAuth()
@@ -19,9 +19,8 @@ export default function Social() {
 
   const load = async () => {
     setLoading(true)
-    const [f, fr, req] = await Promise.all([
-      getFriendsFeed(profile.id),
-      getFriends(profile.id),
+    const [{ feed: f, friends: fr }, req] = await Promise.all([
+      getFriendsFeedAndFriends(profile.id),
       getFriendRequests(profile.id),
     ])
     setFeed(f); setFriends(fr); setRequests(req)
@@ -104,7 +103,7 @@ export default function Social() {
               <div style={{ color:'var(--text-muted)', fontSize:13 }}>No activity yet — add friends to see their workouts</div>
             </div>
           ) : feed.map(s => {
-            const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
+            const vol = calcSessionVolume(s)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
             const user = s.profiles
             return (
