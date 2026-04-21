@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getSessions, saveSession, checkAndUpdatePR, getLastExerciseSets } from '../lib/db'
+import {
+  getSessions, saveSession, checkAndUpdatePR, getLastExerciseSets,
+  getTemplates, saveTemplate, deleteTemplate,
+} from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES } from '../lib/ranks'
 
 const uid = () => Math.random().toString(36).slice(2)
@@ -20,9 +23,16 @@ export default function Session() {
   const [suggestions, setSuggestions] = useState({}) // exerciseName -> sets
   const timer = useRef(null)
   const [saving, setSaving] = useState(false)
+  const [templates, setTemplates] = useState([])
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showSaveTpl, setShowSaveTpl] = useState(false)
+  const [tplName, setTplName] = useState('')
 
   useEffect(() => { if (profile) load() }, [profile?.id])
-  const load = async () => setSessions(await getSessions(profile.id))
+  const load = async () => {
+    const [s, t] = await Promise.all([getSessions(profile.id), getTemplates(profile.id)])
+    setSessions(s); setTemplates(t)
+  }
 
   useEffect(() => {
     if (active) { timer.current = setInterval(() => setElapsed(e => e+1), 1000) }
@@ -31,6 +41,59 @@ export default function Session() {
   }, [!!active])
 
   const startSession = () => { setActive({ id: uid(), date: new Date().toISOString(), exercises:[], cardio:[] }); setView('active') }
+
+  const startFromTemplate = async (tpl) => {
+    const exs = (tpl.exercises || []).map(e => ({
+      id: uid(),
+      name: e.name,
+      muscleGroup: e.muscleGroup || e.muscle_group,
+      sets: [{ id: uid(), weight:'', reps:'' }],
+    }))
+    setActive({ id: uid(), date: new Date().toISOString(), exercises: exs, cardio: [] })
+    setView('active')
+    setShowTemplates(false)
+    // prefetch suggestions for each exercise
+    for (const ex of exs) {
+      const lastSets = await getLastExerciseSets(profile.id, ex.name)
+      if (lastSets?.length) {
+        const best = lastSets.reduce((a,b) => (+b.weight||0)>(+a.weight||0)?b:a)
+        setSuggestions(s => ({ ...s, [ex.name]: { weight: best.weight, reps: best.reps } }))
+      }
+    }
+  }
+
+  const startFromPastSession = async (s) => {
+    const exs = (s.exercises || []).map(e => ({
+      id: uid(),
+      name: e.name,
+      muscleGroup: e.muscle_group || e.muscleGroup,
+      sets: [{ id: uid(), weight:'', reps:'' }],
+    }))
+    setActive({ id: uid(), date: new Date().toISOString(), exercises: exs, cardio: [] })
+    setView('active')
+    setShowTemplates(false)
+    for (const ex of exs) {
+      const lastSets = await getLastExerciseSets(profile.id, ex.name)
+      if (lastSets?.length) {
+        const best = lastSets.reduce((a,b) => (+b.weight||0)>(+a.weight||0)?b:a)
+        setSuggestions(s => ({ ...s, [ex.name]: { weight: best.weight, reps: best.reps } }))
+      }
+    }
+  }
+
+  const handleSaveTemplate = async () => {
+    if (!tplName.trim() || !active?.exercises?.length) return
+    try {
+      await saveTemplate(profile.id, tplName.trim(), active.exercises)
+      setTemplates(await getTemplates(profile.id))
+      setTplName(''); setShowSaveTpl(false)
+    } catch (e) { alert(e.message) }
+  }
+
+  const handleDeleteTemplate = async (id) => {
+    await deleteTemplate(id)
+    setTemplates(await getTemplates(profile.id))
+  }
 
   const addExercise = async (name, group) => {
     const newEx = { id:uid(), name, muscleGroup:group, sets:[{id:uid(),weight:'',reps:''}] }
@@ -146,10 +209,29 @@ export default function Session() {
 
         <button onClick={()=>setShowPicker(true)} style={{ background:'transparent', border:'1px dashed var(--border)', borderRadius:'var(--radius)', padding:14, color:'var(--text-dim)', fontSize:14, fontWeight:600 }}>+ ADD EXERCISE</button>
         <button onClick={()=>setShowCardio(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:12, color:'var(--text-muted)', fontSize:12 }}>+ ADD CARDIO</button>
+        {active.exercises.length > 0 && (
+          <button onClick={()=>setShowSaveTpl(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>SAVE AS TEMPLATE</button>
+        )}
       </div>
 
       {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} />}
       {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} />}
+      {showSaveTpl && (
+        <Modal onClose={()=>setShowSaveTpl(false)} title="SAVE AS TEMPLATE">
+          <input
+            autoFocus
+            value={tplName}
+            onChange={e=>setTplName(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&handleSaveTemplate()}
+            placeholder="Template name (e.g. Push Day)"
+            style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'12px 14px', fontSize:15, width:'100%', marginBottom:12 }}
+          />
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={()=>{ setShowSaveTpl(false); setTplName('') }} style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:12, color:'var(--text-dim)', fontWeight:600 }}>Cancel</button>
+            <button onClick={handleSaveTemplate} disabled={!tplName.trim()} style={{ flex:2, background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:12, color:'#fff', fontWeight:700, fontSize:14, opacity:tplName.trim()?1:0.5 }}>SAVE</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 
@@ -173,7 +255,10 @@ export default function Session() {
             <TabBtn active={view==='calendar'} onClick={()=>setView('calendar')}>CAL</TabBtn>
           </div>
         </div>
-        <button onClick={startSession} style={{ background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:16, fontSize:15, fontWeight:700, width:'100%', marginBottom:24 }}>START SESSION</button>
+        <div style={{ display:'flex', gap:8, marginBottom:24 }}>
+          <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:16, fontSize:15, fontWeight:700 }}>START SESSION</button>
+          <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:12, fontWeight:700, letterSpacing:'1px' }}>TEMPLATE</button>
+        </div>
 
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
           <button onClick={()=>setCalMonth(new Date(year,month-1,1))} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'6px 12px', color:'var(--text-dim)' }}>‹</button>
@@ -197,6 +282,7 @@ export default function Session() {
             )
           })}
         </div>
+        {showTemplates && <TemplatesModal templates={templates} sessions={sessions} onPickTemplate={startFromTemplate} onPickSession={startFromPastSession} onDeleteTemplate={handleDeleteTemplate} onClose={()=>setShowTemplates(false)} />}
       </div>
     )
   }
@@ -212,7 +298,10 @@ export default function Session() {
         </div>
       </div>
       <p style={{ color:'var(--text-dim)', marginBottom:24, fontSize:14 }}>Log workouts, track your lifts</p>
-      <button onClick={startSession} style={{ background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:16, fontSize:15, fontWeight:700, width:'100%', marginBottom:24 }}>START SESSION</button>
+      <div style={{ display:'flex', gap:8, marginBottom:24 }}>
+        <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:16, fontSize:15, fontWeight:700 }}>START SESSION</button>
+        <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:12, fontWeight:700, letterSpacing:'1px' }}>TEMPLATE</button>
+      </div>
 
       {sessions.length === 0 ? (
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)', fontSize:13 }}>No sessions yet</div>
@@ -237,6 +326,7 @@ export default function Session() {
           })}
         </div>
       )}
+      {showTemplates && <TemplatesModal templates={templates} sessions={sessions} onPickTemplate={startFromTemplate} onPickSession={startFromPastSession} onDeleteTemplate={handleDeleteTemplate} onClose={()=>setShowTemplates(false)} />}
     </div>
   )
 }
@@ -255,14 +345,97 @@ function StatPill({ label, value }) {
 }
 
 function ExercisePicker({ group, onGroupChange, onSelect, onClose }) {
+  const [customName, setCustomName] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+  const submitCustom = () => {
+    const n = customName.trim()
+    if (!n) return
+    onSelect(n, group)
+    setCustomName(''); setShowCustom(false)
+  }
   return (
     <Modal onClose={onClose} title="ADD EXERCISE">
       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
         {MUSCLE_GROUPS.map(g => <button key={g} onClick={()=>onGroupChange(g)} style={{ padding:'6px 12px', borderRadius:20, border:'none', background:group===g?'var(--accent)':'var(--bg3)', color:group===g?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600 }}>{g}</button>)}
       </div>
+      {showCustom ? (
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
+          <div style={{ fontSize:11, color:'var(--text-muted)', letterSpacing:'2px', fontFamily:'var(--mono)' }}>CUSTOM — {group.toUpperCase()}</div>
+          <input
+            autoFocus
+            value={customName}
+            onChange={e=>setCustomName(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&submitCustom()}
+            placeholder="e.g. Landmine Twist"
+            style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'12px 14px', fontSize:15, width:'100%' }}
+          />
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={()=>{ setShowCustom(false); setCustomName('') }} style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:11, color:'var(--text-dim)', fontWeight:600 }}>Cancel</button>
+            <button onClick={submitCustom} disabled={!customName.trim()} style={{ flex:2, background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:11, color:'#fff', fontWeight:700, fontSize:14, opacity:customName.trim()?1:0.5 }}>ADD</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={()=>setShowCustom(true)} style={{ width:'100%', background:'transparent', border:'1px dashed var(--accent)', borderRadius:'var(--radius-sm)', padding:'12px', color:'var(--accent)', fontSize:13, fontWeight:700, letterSpacing:'1px', marginBottom:12 }}>+ CUSTOM MACHINE / EXERCISE</button>
+      )}
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
         {(EXERCISES[group]||[]).map(ex => <button key={ex} onClick={()=>onSelect(ex,group)} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'13px 14px', textAlign:'left', color:'var(--text)', fontSize:14 }}>{ex}</button>)}
       </div>
+    </Modal>
+  )
+}
+
+function TemplatesModal({ templates, sessions, onPickTemplate, onPickSession, onDeleteTemplate, onClose }) {
+  const recent = (sessions || []).slice(0, 10)
+  return (
+    <Modal onClose={onClose} title="START FROM TEMPLATE">
+      {templates.length === 0 && recent.length === 0 && (
+        <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:13 }}>
+          No templates or past sessions yet. Finish a session first, then save it as a template.
+        </div>
+      )}
+      {templates.length > 0 && (
+        <>
+          <div className="label" style={{ marginBottom:10 }}>SAVED TEMPLATES</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:18 }}>
+            {templates.map(t => {
+              const groups = [...new Set((t.exercises||[]).map(e => e.muscleGroup || e.muscle_group))].filter(Boolean)
+              return (
+                <div key={t.id} className="card" style={{ padding:12, display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:14 }}>{t.name}</div>
+                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', marginTop:2 }}>
+                      {(t.exercises||[]).length} exercises · {groups.join(', ')||'—'}
+                    </div>
+                  </div>
+                  <button onClick={()=>onPickTemplate(t)} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'#fff', fontWeight:700, fontSize:12 }}>RUN</button>
+                  <button onClick={()=>onDeleteTemplate(t.id)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:18, padding:'0 4px' }}>×</button>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+      {recent.length > 0 && (
+        <>
+          <div className="label" style={{ marginBottom:10 }}>RE-RUN PAST SESSION</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {recent.map(s => {
+              const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
+              return (
+                <button key={s.id} onClick={()=>onPickSession(s)} className="card" style={{ padding:12, textAlign:'left', cursor:'pointer' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between' }}>
+                    <span style={{ fontWeight:600, fontSize:13 }}>{groups.join(', ')||'Workout'}</span>
+                    <span style={{ fontSize:11, color:'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+                  </div>
+                  <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', marginTop:3 }}>
+                    {(s.exercises||[]).length} exercises
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
     </Modal>
   )
 }

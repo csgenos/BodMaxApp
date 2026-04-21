@@ -36,7 +36,10 @@ export default function Profile() {
       const updated = await updateProfile(profile.id, {
         name: form.name, username: form.username?.toLowerCase(),
         goal: form.goal, target_calories: +form.target_calories,
-        target_protein: +form.target_protein, accent_color: form.accent_color,
+        target_protein: +form.target_protein,
+        target_carbs: form.target_carbs ? +form.target_carbs : null,
+        target_fat: form.target_fat ? +form.target_fat : null,
+        accent_color: form.accent_color,
       })
       setProfile(updated); setEditing(false)
     } catch(e) { alert(e.message) }
@@ -168,6 +171,10 @@ export default function Profile() {
                 <div style={{ display:'flex', gap:12 }}>
                   <Field label="CALORIES" style={{ flex:1 }}><input style={INP} type="number" value={form.target_calories||''} onChange={e=>setForm(f=>({...f,target_calories:e.target.value}))} /></Field>
                   <Field label="PROTEIN (g)" style={{ flex:1 }}><input style={INP} type="number" value={form.target_protein||''} onChange={e=>setForm(f=>({...f,target_protein:e.target.value}))} /></Field>
+                </div>
+                <div style={{ display:'flex', gap:12 }}>
+                  <Field label="CARBS (g)" style={{ flex:1 }}><input style={INP} type="number" value={form.target_carbs||''} onChange={e=>setForm(f=>({...f,target_carbs:e.target.value}))} /></Field>
+                  <Field label="FAT (g)" style={{ flex:1 }}><input style={INP} type="number" value={form.target_fat||''} onChange={e=>setForm(f=>({...f,target_fat:e.target.value}))} /></Field>
                 </div>
                 <Field label="ACCENT COLOR">
                   <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
