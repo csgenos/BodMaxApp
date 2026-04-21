@@ -5,11 +5,11 @@ import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES } from '../lib/ranks'
 
 const uid = () => Math.random().toString(36).slice(2)
 
-const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '8px 6px', fontSize: 15, textAlign: 'center', width: '100%', fontFamily: 'var(--mono)' }
+const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: '10px 6px', fontSize: 16, textAlign: 'center', width: '100%', fontFamily: 'var(--mono)' }
 
 export default function Session() {
   const { profile } = useAuth()
-  const [view, setView] = useState('list') // list | calendar | active | summary
+  const [view, setView] = useState('list')
   const [sessions, setSessions] = useState([])
   const [active, setActive] = useState(null)
   const [elapsed, setElapsed] = useState(0)
@@ -22,6 +22,11 @@ export default function Session() {
   const [suggestions, setSuggestions] = useState({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  // Rest timer
+  const [restActive, setRestActive] = useState(false)
+  const [restCountdown, setRestCountdown] = useState(0)
+  const restDurationRef = useRef(90)
+  const restTimerRef = useRef(null)
   const timer = useRef(null)
   const mounted = useRef(true)
 
@@ -38,20 +43,51 @@ export default function Session() {
     try {
       const s = await getSessions(profile.id)
       if (mounted.current) setSessions(s)
-    } catch (e) {
-      if (mounted.current) setError(e.message)
-    }
+    } catch (e) { if (mounted.current) setError(e.message) }
   }
 
+  // Session elapsed timer
   useEffect(() => {
     if (active) { timer.current = setInterval(() => setElapsed(e => e + 1), 1000) }
     else { clearInterval(timer.current); setElapsed(0) }
     return () => clearInterval(timer.current)
   }, [!!active])
 
+  // Rest countdown
+  useEffect(() => {
+    if (restActive && restCountdown > 0) {
+      restTimerRef.current = setInterval(() => {
+        setRestCountdown(c => {
+          if (c <= 1) {
+            clearInterval(restTimerRef.current)
+            setRestActive(false)
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200])
+            return 0
+          }
+          return c - 1
+        })
+      }, 1000)
+    }
+    return () => clearInterval(restTimerRef.current)
+  }, [restActive])
+
+  const startRest = (seconds) => {
+    clearInterval(restTimerRef.current)
+    restDurationRef.current = seconds
+    setRestCountdown(seconds)
+    setRestActive(true)
+  }
+
+  const stopRest = () => {
+    clearInterval(restTimerRef.current)
+    setRestActive(false)
+    setRestCountdown(0)
+  }
+
   const startSession = () => {
     setActive({ id: uid(), date: new Date().toISOString(), exercises: [], cardio: [] })
     setView('active')
+    stopRest()
   }
 
   const addExercise = async (name, group) => {
@@ -64,19 +100,46 @@ export default function Session() {
         const best = lastSets.reduce((a, b) => (+b.weight || 0) > (+a.weight || 0) ? b : a)
         setSuggestions(s => ({ ...s, [name]: { weight: best.weight, reps: best.reps } }))
       }
-    } catch { /* suggestion is optional */ }
+    } catch { /* suggestion optional */ }
   }
 
   const removeExercise = id => setActive(s => ({ ...s, exercises: s.exercises.filter(e => e.id !== id) }))
-  const addSet = exId => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '' }] } : ex) }))
-  const removeSet = (exId, setId) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.filter(st => st.id !== setId) } : ex) }))
-  const updateSet = (exId, setId, f, v) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.map(st => st.id === setId ? { ...st, [f]: v } : st) } : ex) }))
+
+  const addSet = exId => setActive(s => ({
+    ...s,
+    exercises: s.exercises.map(ex => ex.id === exId
+      ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '' }] }
+      : ex)
+  }))
+
+  const duplicateLastSet = exId => setActive(s => ({
+    ...s,
+    exercises: s.exercises.map(ex => {
+      if (ex.id !== exId) return ex
+      const last = ex.sets[ex.sets.length - 1]
+      return { ...ex, sets: [...ex.sets, { id: uid(), weight: last?.weight || '', reps: last?.reps || '' }] }
+    })
+  }))
+
+  const removeSet = (exId, setId) => setActive(s => ({
+    ...s,
+    exercises: s.exercises.map(ex => ex.id === exId
+      ? { ...ex, sets: ex.sets.filter(st => st.id !== setId) }
+      : ex)
+  }))
+
+  const updateSet = (exId, setId, f, v) => setActive(s => ({
+    ...s,
+    exercises: s.exercises.map(ex => ex.id === exId
+      ? { ...ex, sets: ex.sets.map(st => st.id === setId ? { ...st, [f]: v } : st) }
+      : ex)
+  }))
+
   const addCardio = c => { setActive(s => ({ ...s, cardio: [...s.cardio, { ...c, id: uid() }] })); setShowCardio(false) }
 
   const finishSession = async () => {
     if (saving) return
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null); stopRest()
     const sess = { ...active, completedAt: new Date().toISOString(), duration: elapsed }
     try {
       await saveSession(profile.id, sess)
@@ -87,23 +150,20 @@ export default function Session() {
             try {
               const isNew = await checkAndUpdatePR(profile.id, ex.name, ex.muscleGroup, +set.weight, +set.reps)
               if (isNew && !prs.includes(ex.name)) prs.push(ex.name)
-            } catch { /* non-fatal: PR check failure shouldn't fail the session */ }
+            } catch { /* non-fatal */ }
           }
         }
       }
       await load()
-      if (mounted.current) {
-        setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
-      }
-    } catch (e) {
-      if (mounted.current) setError('Save failed: ' + e.message)
-    }
+      if (mounted.current) { setNewPRs(prs); setSummary(sess); setActive(null); setView('summary') }
+    } catch (e) { if (mounted.current) setError('Save failed: ' + e.message) }
     if (mounted.current) setSaving(false)
   }
 
   const fmtTime = s => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
   const sessVol = exs => (exs || []).reduce((sum, ex) => sum + (ex.sets || []).reduce((s2, set) => s2 + ((+set.weight || 0) * (+set.reps || 0)), 0), 0)
 
+  // SUMMARY
   if (view === 'summary' && summary) return (
     <div style={{ padding: '60px 20px', textAlign: 'center' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>🏁</div>
@@ -119,18 +179,46 @@ export default function Session() {
           {newPRs.map(pr => <div key={pr} style={{ fontWeight: 600, marginBottom: 4 }}>{pr}</div>)}
         </div>
       )}
-      <button onClick={() => { setSummary(null); setNewPRs([]); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
+      <button onClick={() => { setSummary(null); setNewPRs([]); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '16px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
     </div>
   )
 
+  // ACTIVE SESSION
   if (view === 'active' && active) return (
-    <div style={{ paddingBottom: 24 }}>
-      <div style={{ padding: '52px 20px 16px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div className="label">SESSION IN PROGRESS</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)', marginTop: 2 }}>{fmtTime(elapsed)}</div>
+    <div style={{ paddingBottom: 32 }}>
+      {/* Header */}
+      <div style={{ padding: '52px 20px 14px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div className="label">SESSION IN PROGRESS</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)', marginTop: 2 }}>{fmtTime(elapsed)}</div>
+          </div>
+          <button onClick={finishSession} disabled={saving} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '12px 24px', color: '#fff', fontWeight: 700, fontSize: 15, opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'SAVING...' : 'FINISH'}
+          </button>
         </div>
-        <button onClick={finishSession} disabled={saving} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 22px', color: '#fff', fontWeight: 700, fontSize: 14, opacity: saving ? 0.7 : 1 }}>{saving ? 'SAVING...' : 'FINISH'}</button>
+
+        {/* Rest timer */}
+        <div style={{ marginTop: 10 }}>
+          {restActive ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 13, color: '#4a9eb5', fontFamily: 'var(--mono)', fontWeight: 700, minWidth: 52 }}>
+                REST {fmtTime(restCountdown)}
+              </span>
+              <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2 }}>
+                <div style={{ height: '100%', width: `${Math.round(restCountdown / restDurationRef.current * 100)}%`, background: '#4a9eb5', borderRadius: 2, transition: 'width 1s linear' }} />
+              </div>
+              <button onClick={stopRest} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>✕</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', letterSpacing: '1px' }}>REST:</span>
+              {[60, 90, 120].map(s => (
+                <button key={s} onClick={() => startRest(s)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', color: 'var(--text-dim)', fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 600 }}>{s}s</button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <div style={{ margin: '12px 20px 0', padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
@@ -138,9 +226,9 @@ export default function Session() {
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {active.exercises.map(ex => (
           <div key={ex.id} className="card" style={{ padding: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{ex.name}</div>
                 <div style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: '2px', fontFamily: 'var(--mono)', marginTop: 2 }}>{ex.muscleGroup}</div>
                 {suggestions[ex.name] && (
                   <div style={{ fontSize: 11, color: '#4a9eb5', marginTop: 4, background: 'rgba(74,158,181,0.1)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
@@ -148,20 +236,44 @@ export default function Session() {
                   </div>
                 )}
               </div>
-              <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
+              <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 22, padding: '4px 8px' }}>×</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6 }}>
-              <span className="label">#</span><span className="label" style={{ textAlign: 'center' }}>LBS</span><span className="label" style={{ textAlign: 'center' }}>REPS</span><span />
+
+            {/* Set header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 36px', gap: 6, marginBottom: 8 }}>
+              <span className="label" style={{ fontSize: 8 }}>#</span>
+              <span className="label" style={{ textAlign: 'center', fontSize: 8 }}>LBS</span>
+              <span className="label" style={{ textAlign: 'center', fontSize: 8 }}>REPS</span>
+              <span />
             </div>
+
             {ex.sets.map((set, i) => (
-              <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+              <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 36px', gap: 6, marginBottom: 8, alignItems: 'center' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textAlign: 'center' }}>{i + 1}</span>
-                <input style={INP} type="number" inputMode="decimal" placeholder={suggestions[ex.name]?.weight || '0'} value={set.weight} onChange={e => updateSet(ex.id, set.id, 'weight', e.target.value)} />
-                <input style={INP} type="number" inputMode="numeric" placeholder={suggestions[ex.name]?.reps || '0'} value={set.reps} onChange={e => updateSet(ex.id, set.id, 'reps', e.target.value)} />
-                <button onClick={() => removeSet(ex.id, set.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18 }}>−</button>
+                <input
+                  style={INP}
+                  type="number" inputMode="decimal"
+                  placeholder={suggestions[ex.name]?.weight || '0'}
+                  value={set.weight}
+                  onChange={e => updateSet(ex.id, set.id, 'weight', e.target.value)}
+                />
+                <input
+                  style={INP}
+                  type="number" inputMode="numeric"
+                  placeholder={suggestions[ex.name]?.reps || '0'}
+                  value={set.reps}
+                  onChange={e => updateSet(ex.id, set.id, 'reps', e.target.value)}
+                />
+                <button onClick={() => removeSet(ex.id, set.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, padding: '4px' }}>−</button>
               </div>
             ))}
-            <button onClick={() => addSet(ex.id)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px', width: '100%', color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>+ ADD SET</button>
+
+            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+              {ex.sets.length > 0 && (
+                <button onClick={() => { duplicateLastSet(ex.id); startRest(restDurationRef.current) }} style={{ flex: 1, background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 8px', color: '#4a9eb5', fontSize: 12, fontWeight: 600 }}>COPY + REST</button>
+              )}
+              <button onClick={() => addSet(ex.id)} style={{ flex: 1, background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 8px', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>+ ADD SET</button>
+            </div>
           </div>
         ))}
 
@@ -173,8 +285,8 @@ export default function Session() {
           </div>
         ))}
 
-        <button onClick={() => setShowPicker(true)} style={{ background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontSize: 14, fontWeight: 600 }}>+ ADD EXERCISE</button>
-        <button onClick={() => setShowCardio(true)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>+ ADD CARDIO</button>
+        <button onClick={() => setShowPicker(true)} style={{ background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: 16, color: 'var(--text-dim)', fontSize: 15, fontWeight: 600 }}>+ ADD EXERCISE</button>
+        <button onClick={() => setShowCardio(true)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-muted)', fontSize: 13 }}>+ ADD CARDIO</button>
       </div>
 
       {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={() => setShowPicker(false)} />}
@@ -182,6 +294,7 @@ export default function Session() {
     </div>
   )
 
+  // CALENDAR
   if (view === 'calendar') {
     const sessionDates = new Set(sessions.map(s => s.date?.split('T')[0]))
     const year = calMonth.getFullYear(), month = calMonth.getMonth()
@@ -190,7 +303,6 @@ export default function Session() {
     const cells = []
     for (let i = 0; i < firstDay; i++) cells.push(null)
     for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-    const monthStr = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
     return (
       <div style={{ padding: '52px 20px 24px' }}>
@@ -205,7 +317,7 @@ export default function Session() {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <button onClick={() => setCalMonth(new Date(year, month - 1, 1))} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', color: 'var(--text-dim)' }}>‹</button>
-          <span style={{ fontWeight: 700 }}>{monthStr}</span>
+          <span style={{ fontWeight: 700 }}>{calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
           <button onClick={() => setCalMonth(new Date(year, month + 1, 1))} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 12px', color: 'var(--text-dim)' }}>›</button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
@@ -218,8 +330,8 @@ export default function Session() {
             const hasSession = sessionDates.has(dateStr)
             const isToday = dateStr === new Date().toISOString().split('T')[0]
             return (
-              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: hasSession ? 'var(--accent-low)' : isToday ? 'var(--bg3)' : 'transparent', border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}`, position: 'relative' }}>
-                <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 400, color: hasSession ? 'var(--accent)' : isToday ? 'var(--accent)' : 'var(--text-dim)' }}>{d}</span>
+              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: hasSession ? 'var(--accent-low)' : isToday ? 'var(--bg3)' : 'transparent', border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}` }}>
+                <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 400, color: hasSession || isToday ? 'var(--accent)' : 'var(--text-dim)' }}>{d}</span>
                 {hasSession && <div style={{ width: 4, height: 4, background: 'var(--accent)', borderRadius: '50%', marginTop: 2 }} />}
               </div>
             )
@@ -229,6 +341,7 @@ export default function Session() {
     )
   }
 
+  // LIST
   return (
     <div style={{ padding: '52px 20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -239,7 +352,7 @@ export default function Session() {
         </div>
       </div>
       <p style={{ color: 'var(--text-dim)', marginBottom: 24, fontSize: 14 }}>Log workouts, track your lifts</p>
-      <button onClick={startSession} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: 16, fontSize: 15, fontWeight: 700, width: '100%', marginBottom: 24 }}>START SESSION</button>
+      <button onClick={startSession} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius)', padding: 18, fontSize: 16, fontWeight: 700, width: '100%', marginBottom: 24, letterSpacing: '1px' }}>START SESSION</button>
 
       {error && <div style={{ marginBottom: 12, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
@@ -287,16 +400,16 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose }) {
   return (
     <Modal onClose={onClose} title="ADD EXERCISE">
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-        {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: group === g ? 'var(--accent)' : 'var(--bg3)', color: group === g ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{g}</button>)}
+        {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding: '7px 13px', borderRadius: 20, border: 'none', background: group === g ? 'var(--accent)' : 'var(--bg3)', color: group === g ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{g}</button>)}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {(EXERCISES[group] || []).map(ex => <button key={ex} onClick={() => onSelect(ex, group)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '13px 14px', textAlign: 'left', color: 'var(--text)', fontSize: 14 }}>{ex}</button>)}
+        {(EXERCISES[group] || []).map(ex => <button key={ex} onClick={() => onSelect(ex, group)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '15px 14px', textAlign: 'left', color: 'var(--text)', fontSize: 15 }}>{ex}</button>)}
       </div>
     </Modal>
   )
 }
 
-const CARD_INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '11px 12px', fontSize: 15, width: '100%' }
+const CARD_INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '13px 12px', fontSize: 15, width: '100%' }
 
 function CardioModal({ onAdd, onClose }) {
   const [type, setType] = useState(CARDIO_TYPES[0])
@@ -306,14 +419,14 @@ function CardioModal({ onAdd, onClose }) {
   return (
     <Modal onClose={onClose} title="ADD CARDIO">
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-        {CARDIO_TYPES.map(t => <button key={t} onClick={() => setType(t)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: type === t ? '#4a9eb5' : 'var(--bg3)', color: type === t ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{t}</button>)}
+        {CARDIO_TYPES.map(t => <button key={t} onClick={() => setType(t)} style={{ padding: '7px 13px', borderRadius: 20, border: 'none', background: type === t ? '#4a9eb5' : 'var(--bg3)', color: type === t ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{t}</button>)}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         <input style={CARD_INP} type="number" placeholder="Duration (minutes) *" value={duration} onChange={e => setDuration(e.target.value)} />
         <input style={CARD_INP} type="number" placeholder="Distance (miles) — optional" value={distance} onChange={e => setDistance(e.target.value)} />
         <input style={CARD_INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e => setCalories(e.target.value)} />
       </div>
-      <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
+      <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 16, width: '100%', color: '#fff', fontWeight: 700, fontSize: 15 }}>ADD CARDIO</button>
     </Modal>
   )
 }
@@ -324,7 +437,7 @@ function Modal({ children, onClose, title }) {
       <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <span className="label">{title}</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 24 }}>×</button>
         </div>
         {children}
       </div>

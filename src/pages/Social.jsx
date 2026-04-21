@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest } from '../lib/db'
+import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest, getLeaderboard } from '../lib/db'
 import { MUSCLE_GROUPS } from '../lib/ranks'
 
 export default function Social() {
@@ -13,7 +13,10 @@ export default function Social() {
   const [searchResults, setSearchResults] = useState([])
   const [selectedFriend, setSelectedFriend] = useState(null)
   const [friendPRs, setFriendPRs] = useState([])
+  const [leaderboard, setLeaderboard] = useState([])
+  const [competeMode, setCompeteMode] = useState('weekly')
   const [loading, setLoading] = useState(true)
+  const [leaderLoading, setLeaderLoading] = useState(false)
   const [error, setError] = useState(null)
   const mounted = useRef(true)
   const searchTimer = useRef(null)
@@ -25,6 +28,10 @@ export default function Social() {
 
   useEffect(() => { if (profile) load() }, [profile?.id])
 
+  useEffect(() => {
+    if (tab === 'compete' && profile && leaderboard.length === 0) loadLeaderboard()
+  }, [tab])
+
   const load = async () => {
     setLoading(true)
     try {
@@ -35,10 +42,17 @@ export default function Social() {
       ])
       if (!mounted.current) return
       setFeed(f); setFriends(fr); setRequests(req)
-    } catch (e) {
-      if (mounted.current) setError(e.message)
-    }
+    } catch (e) { if (mounted.current) setError(e.message) }
     if (mounted.current) setLoading(false)
+  }
+
+  const loadLeaderboard = async () => {
+    setLeaderLoading(true)
+    try {
+      const data = await getLeaderboard(profile.id, profile)
+      if (mounted.current) setLeaderboard(data)
+    } catch (e) { if (mounted.current) setError(e.message) }
+    if (mounted.current) setLeaderLoading(false)
   }
 
   const doSearch = (q) => {
@@ -57,9 +71,7 @@ export default function Social() {
     try {
       await sendFriendRequest(profile.id, userId)
       if (mounted.current) setSearchResults(r => r.filter(u => u.id !== userId))
-    } catch {
-      if (mounted.current) setError('Friend request already sent or failed')
-    }
+    } catch { if (mounted.current) setError('Friend request already sent or failed') }
   }
 
   const handleAccept = async (id) => {
@@ -74,8 +86,8 @@ export default function Social() {
   const viewFriendPRs = async (friend) => {
     setSelectedFriend(friend)
     try {
-      const prs = await getFriendPRs(friend.id)
-      if (mounted.current) setFriendPRs(prs)
+      const p = await getFriendPRs(friend.id)
+      if (mounted.current) setFriendPRs(p)
     } catch { /* show empty */ }
   }
 
@@ -115,14 +127,22 @@ export default function Social() {
     </div>
   )
 
+  const sortedLeaderboard = [...leaderboard].sort((a, b) =>
+    competeMode === 'weekly' ? b.weeklyCount - a.weeklyCount : b.monthlyCount - a.monthlyCount)
+
   return (
     <div style={{ paddingBottom: 24 }}>
       <div style={{ padding: '52px 20px 0', borderBottom: '1px solid var(--border)' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Social</h2>
         <div style={{ display: 'flex' }}>
-          {['feed', 'friends', 'add'].map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`, color: tab === t ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '9px', letterSpacing: '3px', fontFamily: 'var(--mono)', fontWeight: 600, textTransform: 'uppercase' }}>
-              {t === 'add' ? `ADD${requests.length ? ' (' + requests.length + ')' : ''}` : t.toUpperCase()}
+          {[
+            { key: 'feed', label: 'FEED' },
+            { key: 'friends', label: 'FRIENDS' },
+            { key: 'add', label: requests.length ? `ADD (${requests.length})` : 'ADD' },
+            { key: 'compete', label: 'COMPETE' },
+          ].map(({ key, label }) => (
+            <button key={key} onClick={() => setTab(key)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === key ? 'var(--accent)' : 'transparent'}`, color: tab === key ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '8px', letterSpacing: '2px', fontFamily: 'var(--mono)', fontWeight: 600 }}>
+              {label}
             </button>
           ))}
         </div>
@@ -131,6 +151,7 @@ export default function Social() {
       <div style={{ padding: 20 }}>
         {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
+        {/* FEED */}
         {tab === 'feed' && (
           loading ? <Loader /> : feed.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -160,6 +181,7 @@ export default function Social() {
           })
         )}
 
+        {/* FRIENDS */}
         {tab === 'friends' && (
           <div>
             {friends.length === 0 ? (
@@ -177,6 +199,7 @@ export default function Social() {
           </div>
         )}
 
+        {/* ADD FRIENDS */}
         {tab === 'add' && (
           <div>
             {requests.length > 0 && (
@@ -194,7 +217,6 @@ export default function Social() {
                 ))}
               </div>
             )}
-
             <div className="label" style={{ marginBottom: 10 }}>SEARCH BY USERNAME</div>
             <input
               style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '13px 16px', fontSize: 15, width: '100%', marginBottom: 12 }}
@@ -215,6 +237,51 @@ export default function Social() {
             {search.length >= 2 && searchResults.length === 0 && (
               <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: 13 }}>No users found</div>
             )}
+          </div>
+        )}
+
+        {/* COMPETE */}
+        {tab === 'compete' && (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {['weekly', 'monthly'].map(m => (
+                <button key={m} onClick={() => setCompeteMode(m)} style={{ flex: 1, background: competeMode === m ? 'var(--accent-low)' : 'var(--bg3)', border: `1px solid ${competeMode === m ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '10px 0', color: competeMode === m ? 'var(--accent)' : 'var(--text-dim)', fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>{m}</button>
+              ))}
+            </div>
+
+            {leaderLoading ? <Loader /> : sortedLeaderboard.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>🏆</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Add friends to compete!</div>
+              </div>
+            ) : sortedLeaderboard.map((entry, i) => {
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+              const count = competeMode === 'weekly' ? entry.weeklyCount : entry.monthlyCount
+              return (
+                <div key={entry.id} className="card" style={{ padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, border: entry.isMe ? `1px solid var(--accent)` : undefined, background: entry.isMe ? 'var(--accent-low)' : undefined }}>
+                  <div style={{ width: 28, textAlign: 'center', flexShrink: 0 }}>
+                    {medal
+                      ? <span style={{ fontSize: 20 }}>{medal}</span>
+                      : <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>#{i + 1}</span>
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: entry.isMe ? 'var(--accent)' : 'var(--text)' }}>
+                      {entry.name}{entry.isMe ? ' (you)' : ''}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 1 }}>
+                      @{entry.username}{entry.streak > 0 ? ` · 🔥${entry.streak}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: entry.isMe ? 'var(--accent)' : 'var(--text)', fontFamily: 'var(--mono)', lineHeight: 1 }}>{count}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                      {competeMode === 'weekly' ? 'this week' : 'this month'}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

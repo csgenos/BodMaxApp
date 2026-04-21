@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getSessions, getPRs, updateProfile } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUSCLE_GROUPS } from '../lib/ranks'
+import { calcStreak } from '../lib/streaks'
+import { getAchievements } from '../lib/achievements'
 
 const ACCENTS = ['#e0161e', '#e07016', '#e0c016', '#16c216', '#1680e0', '#8016e0', '#e016b4', '#f0f0f0']
 const GOALS = ['bulk', 'cut', 'maintain']
@@ -38,11 +40,13 @@ export default function Profile() {
   const overallRank = getRank(totalVol)
   const progress = getRankProgress(totalVol)
   const nextTier = getNextTier(totalVol)
+  const streak = useMemo(() => calcStreak(sessions), [sessions])
+  const achievements = useMemo(() => getAchievements(sessions, prs, streak.best), [sessions, prs, streak.best])
+  const earnedCount = achievements.filter(a => a.earned).length
 
   const saveProfile = async () => {
     if (saving) return
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
       const updated = await updateProfile(profile.id, {
         name: form.name, username: form.username?.toLowerCase(),
@@ -50,14 +54,13 @@ export default function Profile() {
         target_protein: +form.target_protein, accent_color: form.accent_color,
       })
       if (mounted.current) { setProfile(updated); setEditing(false) }
-    } catch (e) {
-      if (mounted.current) setError(e.message)
-    }
+    } catch (e) { if (mounted.current) setError(e.message) }
     if (mounted.current) setSaving(false)
   }
 
   return (
     <div style={{ paddingBottom: 40 }}>
+      {/* Header */}
       <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
           <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--accent-low)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>
@@ -74,7 +77,8 @@ export default function Profile() {
           </div>
         </div>
 
-        <div style={{ background: 'var(--bg3)', border: `1px solid ${overallRank.color}`, borderRadius: 'var(--radius)', padding: 16, marginBottom: 4 }}>
+        {/* Overall Rank */}
+        <div style={{ background: 'var(--bg3)', border: `1px solid ${overallRank.color}`, borderRadius: 'var(--radius)', padding: 16, marginBottom: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div>
               <div className="label" style={{ marginBottom: 4 }}>OVERALL RANK</div>
@@ -90,8 +94,17 @@ export default function Profile() {
           </div>
           {nextTier && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>{progress}% to {nextTier.name} ({Math.round(nextTier.min - totalVol).toLocaleString()} lbs to go)</div>}
         </div>
+
+        {/* Streak row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 4px 0' }}>
+          <span style={{ fontSize: 13, color: streak.current > 0 ? 'var(--text)' : 'var(--text-muted)' }}>
+            {streak.current > 0 ? `🔥 ${streak.current} day streak` : '💤 No active streak'}
+          </span>
+          {streak.best > 0 && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>Best: {streak.best}</span>}
+        </div>
       </div>
 
+      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '16px 20px 0' }}>
         {[['SESSIONS', sessions.length], ['PRs SET', prs.length], ['TOTAL VOL', `${Math.round(totalVol / 1000)}k`]].map(([l, v]) => (
           <div key={l} className="card" style={{ padding: 14, textAlign: 'center' }}>
@@ -101,19 +114,23 @@ export default function Profile() {
         ))}
       </div>
 
+      {/* Tabs */}
       <div style={{ display: 'flex', padding: '16px 20px 0', borderBottom: '1px solid var(--border)', marginTop: 8 }}>
         {['overview', 'prs', 'settings'].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`, color: tab === t ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '9px', letterSpacing: '3px', fontFamily: 'var(--mono)', fontWeight: 600, textTransform: 'uppercase' }}>{t}</button>
+          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`, color: tab === t ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '9px', letterSpacing: '3px', fontFamily: 'var(--mono)', fontWeight: 600, textTransform: 'uppercase' }}>
+            {t === 'overview' ? `OVERVIEW${earnedCount > 0 ? ` (${earnedCount})` : ''}` : t.toUpperCase()}
+          </button>
         ))}
       </div>
 
       <div style={{ padding: 20 }}>
         {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
+        {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
             <div className="label" style={{ marginBottom: 10 }}>MUSCLE RANKS</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 24 }}>
               {MUSCLE_GROUPS.map(g => {
                 const vol = volumes[g] || 0
                 const rank = getRank(vol)
@@ -132,9 +149,33 @@ export default function Profile() {
                 )
               })}
             </div>
+
+            {/* Achievements */}
+            <div className="label" style={{ marginBottom: 10 }}>ACHIEVEMENTS</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {achievements.filter(a => a.earned).map(a => (
+                <div key={a.id} className="card" style={{ padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <span style={{ fontSize: 22 }}>{a.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>{a.label}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 1 }}>{a.desc}</div>
+                  </div>
+                </div>
+              ))}
+              {achievements.filter(a => !a.earned).map(a => (
+                <div key={a.id} style={{ padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center', opacity: 0.3, background: 'var(--bg2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 22, filter: 'grayscale(1)' }}>{a.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{a.label}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 1 }}>{a.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
+        {/* PRs */}
         {tab === 'prs' && (
           <div>
             {prs.length === 0 && <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>No PRs yet</div>}
@@ -159,6 +200,7 @@ export default function Profile() {
           </div>
         )}
 
+        {/* SETTINGS */}
         {tab === 'settings' && (
           <div>
             {editing ? (

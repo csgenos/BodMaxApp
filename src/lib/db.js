@@ -174,3 +174,50 @@ export const getFriendshipStatus = async (userId, friendId) => {
     .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`).maybeSingle()
   return data
 }
+
+export const getLeaderboard = async (userId, currentProfile) => {
+  const friends = await getFriends(userId)
+  const allIds = [...friends.map(f => f.id), userId]
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const { data } = await supabase
+    .from('sessions')
+    .select('user_id, date')
+    .in('user_id', allIds)
+    .not('completed_at', 'is', null)
+    .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+
+  const rows = data || []
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+  const weekStr = weekAgo.toISOString().split('T')[0]
+
+  const calcStreak = (dates) => {
+    const ds = new Set(dates)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+    const yd = new Date(today); yd.setDate(yd.getDate() - 1)
+    const ydStr = yd.toISOString().split('T')[0]
+    let streak = 0
+    if (ds.has(todayStr) || ds.has(ydStr)) {
+      const start = new Date(ds.has(todayStr) ? today : yd)
+      while (ds.has(start.toISOString().split('T')[0])) { streak++; start.setDate(start.getDate() - 1) }
+    }
+    return streak
+  }
+
+  const allPersons = [...friends, { ...currentProfile, id: userId }]
+  return allPersons.map(person => {
+    const userRows = rows.filter(s => s.user_id === person.id)
+    const dates = [...new Set(userRows.map(s => (s.date || '').split('T')[0]).filter(Boolean))].sort()
+    return {
+      id: person.id,
+      name: person.name,
+      username: person.username,
+      weeklyCount: dates.filter(d => d >= weekStr).length,
+      monthlyCount: dates.length,
+      streak: calcStreak(dates),
+      isMe: person.id === userId,
+    }
+  }).sort((a, b) => b.weeklyCount - a.weeklyCount)
+}
