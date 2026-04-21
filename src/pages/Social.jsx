@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus } from '../lib/db'
-import { MUSCLE_GROUPS } from '../lib/ranks'
+import { searchUsers, sendFriendRequest, getFriends, getFriendsFeed, getFriendPRs, getFriendSessions, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus, getSessionComments, addSessionComment } from '../lib/db'
+import { MUSCLE_GROUPS, calcVolumes, getRank, getTotalVolume } from '../lib/ranks'
 
 export default function Social() {
   const { profile } = useAuth()
@@ -13,6 +13,11 @@ export default function Social() {
   const [searchResults, setSearchResults] = useState([])
   const [selectedFriend, setSelectedFriend] = useState(null)
   const [friendPRs, setFriendPRs] = useState([])
+  const [friendSessions, setFriendSessions] = useState([])
+  const [friendVolumes, setFriendVolumes] = useState({})
+  const [openComments, setOpenComments] = useState(new Set())
+  const [sessionComments, setSessionComments] = useState({})
+  const [commentInputs, setCommentInputs] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { if (profile) load() }, [profile?.id])
@@ -43,45 +48,91 @@ export default function Social() {
   const handleAccept = async (id) => { await acceptFriendRequest(id); load() }
   const handleDecline = async (id) => { await declineFriendRequest(id); load() }
 
-  const viewFriendPRs = async (friend) => {
+  const viewFriendProfile = async (friend) => {
     setSelectedFriend(friend)
-    setFriendPRs(await getFriendPRs(friend.id))
+    const [prs, sessions] = await Promise.all([getFriendPRs(friend.id), getFriendSessions(friend.id)])
+    setFriendPRs(prs)
+    setFriendSessions(sessions)
+    setFriendVolumes(calcVolumes(sessions))
   }
 
-  if (selectedFriend) return (
-    <div style={{ padding:'52px 20px 24px' }}>
-      <button onClick={() => setSelectedFriend(null)} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:14, fontWeight:600, marginBottom:20, padding:0 }}>← Back</button>
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:28 }}>
-        <Avatar name={selectedFriend.name} />
-        <div>
-          <div style={{ fontWeight:700, fontSize:18 }}>{selectedFriend.name}</div>
-          <div style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{selectedFriend.username}</div>
+  const toggleComments = async (sessionId) => {
+    setOpenComments(prev => {
+      const next = new Set(prev)
+      next.has(sessionId) ? next.delete(sessionId) : next.add(sessionId)
+      return next
+    })
+    if (!sessionComments[sessionId]) {
+      const comments = await getSessionComments(sessionId)
+      setSessionComments(prev => ({ ...prev, [sessionId]: comments }))
+    }
+  }
+
+  const submitComment = async (sessionId) => {
+    const text = (commentInputs[sessionId] || '').trim()
+    if (!text) return
+    try {
+      const comment = await addSessionComment(sessionId, profile.id, text)
+      setSessionComments(prev => ({ ...prev, [sessionId]: [...(prev[sessionId] || []), comment] }))
+      setCommentInputs(prev => ({ ...prev, [sessionId]: '' }))
+    } catch { alert('Failed to post comment') }
+  }
+
+  if (selectedFriend) {
+    const totalVol = getTotalVolume(friendVolumes)
+    const rank = getRank(totalVol)
+    return (
+      <div style={{ padding:'52px 20px 24px' }}>
+        <button onClick={() => setSelectedFriend(null)} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:14, fontWeight:600, marginBottom:20, padding:0 }}>← Back</button>
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+          <Avatar name={selectedFriend.name} size={52} />
+          <div>
+            <div style={{ fontWeight:700, fontSize:20 }}>{selectedFriend.name}</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{selectedFriend.username}</div>
+          </div>
         </div>
-      </div>
-      <div className="label" style={{ marginBottom:12 }}>PERSONAL RECORDS</div>
-      {friendPRs.length === 0 ? <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>No PRs yet</div>
-        : MUSCLE_GROUPS.map(g => {
-          const gPRs = friendPRs.filter(p => p.muscle_group === g)
-          if (!gPRs.length) return null
-          return (
-            <div key={g} style={{ marginBottom:20 }}>
-              <div className="label" style={{ color:'var(--accent)', marginBottom:8 }}>{g.toUpperCase()}</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                {gPRs.map(pr => (
-                  <div key={pr.id} className="card" style={{ padding:14, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span style={{ fontWeight:600, fontSize:14 }}>{pr.exercise}</span>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:20, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{pr.weight}</div>
-                      <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{pr.reps} reps · lbs</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <div style={{ background:'var(--bg3)', border:`1px solid ${rank.color}`, borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <div className="label" style={{ marginBottom:2 }}>RANK</div>
+            <div style={{ fontSize:18, fontWeight:900, color:rank.color, fontFamily:'var(--mono)' }}>{rank.name}</div>
+          </div>
+          <div style={{ textAlign:'right', fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+            <div>{Math.round(totalVol).toLocaleString()} lbs</div>
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:24 }}>
+          {[['SESSIONS', friendSessions.length], ['PRs SET', friendPRs.length]].map(([l,v]) => (
+            <div key={l} className="card" style={{ padding:12, textAlign:'center' }}>
+              <div style={{ fontSize:20, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{v}</div>
+              <div className="label" style={{ marginTop:3 }}>{l}</div>
             </div>
-          )
-        })}
-    </div>
-  )
+          ))}
+        </div>
+        <div className="label" style={{ marginBottom:12 }}>PERSONAL RECORDS</div>
+        {friendPRs.length === 0 ? <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>No PRs yet</div>
+          : MUSCLE_GROUPS.map(g => {
+            const gPRs = friendPRs.filter(p => p.muscle_group === g)
+            if (!gPRs.length) return null
+            return (
+              <div key={g} style={{ marginBottom:20 }}>
+                <div className="label" style={{ color:'var(--accent)', marginBottom:8 }}>{g.toUpperCase()}</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {gPRs.map(pr => (
+                    <div key={pr.id} className="card" style={{ padding:14, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <span style={{ fontWeight:600, fontSize:14 }}>{pr.exercise}</span>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ fontSize:20, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{pr.weight}</div>
+                        <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+      </div>
+    )
+  }
 
   return (
     <div style={{ paddingBottom:24 }}>
@@ -107,6 +158,8 @@ export default function Social() {
             const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
             const user = s.profiles
+            const isOpen = openComments.has(s.id)
+            const comments = sessionComments[s.id] || []
             return (
               <div key={s.id} className="card" style={{ padding:16, marginBottom:8 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
@@ -118,9 +171,32 @@ export default function Social() {
                   <div style={{ marginLeft:'auto', fontSize:11, color:'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
                 </div>
                 <div style={{ fontWeight:600, fontSize:14, marginBottom:3 }}>{groups.join(', ')||'Workout'}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', marginBottom:10 }}>
                   {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration?` · ${Math.floor(s.duration/60)}m`:''}
                 </div>
+                <button onClick={() => toggleComments(s.id)} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:12, padding:0, cursor:'pointer' }}>
+                  💬 {comments.length > 0 ? `${comments.length} ` : ''}Comment{comments.length !== 1 ? 's' : ''}
+                </button>
+                {isOpen && (
+                  <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)' }}>
+                    {comments.map(c => (
+                      <div key={c.id} style={{ marginBottom:8 }}>
+                        <span style={{ fontWeight:700, fontSize:12 }}>{c.profiles?.name} </span>
+                        <span style={{ fontSize:13, color:'var(--text)' }}>{c.text}</span>
+                      </div>
+                    ))}
+                    <div style={{ display:'flex', gap:8, marginTop:8 }}>
+                      <input
+                        style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'8px 10px', fontSize:13 }}
+                        placeholder="Add a comment..."
+                        value={commentInputs[s.id]||''}
+                        onChange={e => setCommentInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
+                        onKeyDown={e => e.key === 'Enter' && submitComment(s.id)}
+                      />
+                      <button onClick={() => submitComment(s.id)} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'#fff', fontWeight:700, fontSize:12 }}>Post</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })
@@ -138,7 +214,7 @@ export default function Social() {
                   <div style={{ fontWeight:700, fontSize:14 }}>{f.name}</div>
                   <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{f.username}</div>
                 </div>
-                <button onClick={() => viewFriendPRs(f)} style={{ background:'var(--accent-low)', border:`1px solid var(--accent)`, borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'var(--accent)', fontSize:12, fontWeight:700 }}>PRs</button>
+                <button onClick={() => viewFriendProfile(f)} style={{ background:'var(--accent-low)', border:`1px solid var(--accent)`, borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'var(--accent)', fontSize:12, fontWeight:700 }}>View</button>
               </div>
             ))}
           </div>

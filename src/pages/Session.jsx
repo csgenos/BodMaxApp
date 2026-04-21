@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getSessions, saveSession, checkAndUpdatePR, getLastExerciseSets } from '../lib/db'
+import { getSessions, saveSession, updateSession, deleteSession, checkAndUpdatePR, getLastExerciseSets } from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES } from '../lib/ranks'
 
 const uid = () => Math.random().toString(36).slice(2)
@@ -18,6 +18,9 @@ export default function Session() {
   const [newPRs, setNewPRs] = useState([])
   const [calMonth, setCalMonth] = useState(new Date())
   const [suggestions, setSuggestions] = useState({}) // exerciseName -> sets
+  const [isEditing, setIsEditing] = useState(false)
+  const [editSessionId, setEditSessionId] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const timer = useRef(null)
   const [saving, setSaving] = useState(false)
 
@@ -25,12 +28,39 @@ export default function Session() {
   const load = async () => setSessions(await getSessions(profile.id))
 
   useEffect(() => {
-    if (active) { timer.current = setInterval(() => setElapsed(e => e+1), 1000) }
-    else { clearInterval(timer.current); setElapsed(0) }
+    if (active && !isEditing) { timer.current = setInterval(() => setElapsed(e => e+1), 1000) }
+    else { clearInterval(timer.current); if (!isEditing) setElapsed(0) }
     return () => clearInterval(timer.current)
-  }, [!!active])
+  }, [!!active, isEditing])
 
-  const startSession = () => { setActive({ id: uid(), date: new Date().toISOString(), exercises:[], cardio:[] }); setView('active') }
+  const startSession = () => { setIsEditing(false); setEditSessionId(null); setActive({ id: uid(), date: new Date().toISOString(), exercises:[], cardio:[] }); setView('active') }
+
+  const editSession = (s) => {
+    const converted = {
+      id: s.id,
+      date: s.date,
+      duration: s.duration,
+      exercises: (s.exercises || []).map(ex => ({
+        id: ex.id,
+        name: ex.name,
+        muscleGroup: ex.muscle_group || ex.muscleGroup,
+        sets: (ex.sets || []).map(st => ({ id: st.id, weight: String(st.weight ?? ''), reps: String(st.reps ?? '') })),
+      })),
+      cardio: (s.cardio || []).map(c => ({ ...c })),
+    }
+    setIsEditing(true)
+    setEditSessionId(s.id)
+    setActive(converted)
+    setView('active')
+  }
+
+  const cancelEdit = () => { setActive(null); setIsEditing(false); setEditSessionId(null); setView('list') }
+
+  const handleDelete = async (sessionId) => {
+    try { await deleteSession(sessionId, profile.id); await load() }
+    catch(e) { alert('Delete failed: ' + e.message) }
+    setConfirmDelete(null)
+  }
 
   const addExercise = async (name, group) => {
     const newEx = { id:uid(), name, muscleGroup:group, sets:[{id:uid(),weight:'',reps:''}] }
@@ -52,20 +82,26 @@ export default function Session() {
 
   const finishSession = async () => {
     setSaving(true)
-    const sess = { ...active, completedAt: new Date().toISOString(), duration: elapsed }
     try {
-      await saveSession(profile.id, sess)
-      const prs = []
-      for (const ex of sess.exercises) {
-        for (const set of ex.sets) {
-          if (set.weight && set.reps) {
-            const isNew = await checkAndUpdatePR(profile.id, ex.name, ex.muscleGroup, +set.weight, +set.reps)
-            if (isNew && !prs.includes(ex.name)) prs.push(ex.name)
+      if (isEditing) {
+        await updateSession(editSessionId, profile.id, active)
+        await load()
+        setActive(null); setIsEditing(false); setEditSessionId(null); setView('list')
+      } else {
+        const sess = { ...active, completedAt: new Date().toISOString(), duration: elapsed }
+        await saveSession(profile.id, sess)
+        const prs = []
+        for (const ex of sess.exercises) {
+          for (const set of ex.sets) {
+            if (set.weight && set.reps) {
+              const isNew = await checkAndUpdatePR(profile.id, ex.name, ex.muscleGroup, +set.weight, +set.reps)
+              if (isNew && !prs.includes(ex.name)) prs.push(ex.name)
+            }
           }
         }
+        await load()
+        setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
       }
-      await load()
-      setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
     } catch(e) { alert('Save failed: ' + e.message) }
     setSaving(false)
   }
@@ -100,10 +136,16 @@ export default function Session() {
     <div style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
-          <div className="label">SESSION IN PROGRESS</div>
-          <div style={{ fontSize:24, fontWeight:700, color:'var(--accent)', fontFamily:'var(--mono)', marginTop:2 }}>{fmtTime(elapsed)}</div>
+          <div className="label">{isEditing ? 'EDIT SESSION' : 'SESSION IN PROGRESS'}</div>
+          {isEditing
+            ? <div style={{ fontSize:13, color:'var(--text-dim)', marginTop:2 }}>{new Date(active.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+            : <div style={{ fontSize:24, fontWeight:700, color:'var(--accent)', fontFamily:'var(--mono)', marginTop:2 }}>{fmtTime(elapsed)}</div>
+          }
         </div>
-        <button onClick={finishSession} disabled={saving} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'10px 22px', color:'#fff', fontWeight:700, fontSize:14 }}>{saving?'SAVING...':'FINISH'}</button>
+        <div style={{ display:'flex', gap:8 }}>
+          {isEditing && <button onClick={cancelEdit} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'10px 16px', color:'var(--text-dim)', fontWeight:700, fontSize:14 }}>CANCEL</button>}
+          <button onClick={finishSession} disabled={saving} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'10px 22px', color:'#fff', fontWeight:700, fontSize:14 }}>{saving ? 'SAVING...' : isEditing ? 'SAVE' : 'FINISH'}</button>
+        </div>
       </div>
 
       <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
@@ -221,17 +263,31 @@ export default function Session() {
           {sessions.map(s => {
             const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
+            const deleting = confirmDelete === s.id
             return (
               <div key={s.id} className="card" style={{ padding:16 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
-                  <div>
+                  <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, fontSize:14, marginBottom:3 }}>{groups.join(', ')||'Workout'}</div>
                     <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
                       {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration?` · ${Math.floor(s.duration/60)}m`:''}
                     </div>
                   </div>
-                  <span style={{ fontSize:11, color:'var(--text-dim)', whiteSpace:'nowrap', marginLeft:8 }}>{new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0, marginLeft:8 }}>
+                    <span style={{ fontSize:11, color:'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+                    <button onClick={() => editSession(s)} style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, padding:'4px 8px', color:'var(--text-dim)', fontSize:11, fontWeight:600 }}>Edit</button>
+                    <button onClick={() => setConfirmDelete(deleting ? null : s.id)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:18, lineHeight:1, padding:'2px 4px' }}>✕</button>
+                  </div>
                 </div>
+                {deleting && (
+                  <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
+                    <div style={{ fontSize:12, color:'var(--text-dim)', marginBottom:10 }}>Delete this session permanently?</div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={() => setConfirmDelete(null)} style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'8px', color:'var(--text-dim)', fontSize:12, fontWeight:600 }}>Cancel</button>
+                      <button onClick={() => handleDelete(s.id)} style={{ flex:1, background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px', color:'#fff', fontSize:12, fontWeight:700 }}>Delete</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

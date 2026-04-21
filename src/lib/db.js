@@ -109,6 +109,62 @@ export const checkAndUpdatePR = async (userId, exercise, muscleGroup, weight, re
   return false
 }
 
+// ── SESSION MUTATIONS ────────────────────────────────────
+export const deleteSession = async (sessionId, userId) => {
+  const { data: exRows } = await supabase.from('exercises').select('id').eq('session_id', sessionId)
+  if (exRows?.length) {
+    await supabase.from('sets').delete().in('exercise_id', exRows.map(e => e.id))
+  }
+  await supabase.from('exercises').delete().eq('session_id', sessionId)
+  await supabase.from('cardio').delete().eq('session_id', sessionId)
+  const { error } = await supabase.from('sessions').delete().eq('id', sessionId).eq('user_id', userId)
+  if (error) throw error
+}
+
+export const updateSession = async (sessionId, userId, session) => {
+  const { error } = await supabase.from('sessions')
+    .update({ date: session.date, duration: session.duration })
+    .eq('id', sessionId).eq('user_id', userId)
+  if (error) throw error
+  const { data: exRows } = await supabase.from('exercises').select('id').eq('session_id', sessionId)
+  if (exRows?.length) {
+    await supabase.from('sets').delete().in('exercise_id', exRows.map(e => e.id))
+  }
+  await supabase.from('exercises').delete().eq('session_id', sessionId)
+  await supabase.from('cardio').delete().eq('session_id', sessionId)
+  for (let i = 0; i < (session.exercises || []).length; i++) {
+    const ex = session.exercises[i]
+    const { data: exRow } = await supabase.from('exercises')
+      .insert({ session_id: sessionId, name: ex.name, muscle_group: ex.muscleGroup, order_index: i })
+      .select().single()
+    if (!exRow) continue
+    const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
+    for (let j = 0; j < validSets.length; j++) {
+      await supabase.from('sets').insert({ exercise_id: exRow.id, weight: +validSets[j].weight, reps: +validSets[j].reps, set_number: j + 1 })
+    }
+  }
+  for (const c of (session.cardio || [])) {
+    await supabase.from('cardio').insert({ session_id: sessionId, type: c.type, duration: c.duration, distance: c.distance || null, calories: c.calories || null })
+  }
+}
+
+// ── SESSION COMMENTS ──────────────────────────────────────
+export const getSessionComments = async (sessionId) => {
+  const { data } = await supabase.from('session_comments')
+    .select('*, profiles(name, username)')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: true })
+  return data || []
+}
+
+export const addSessionComment = async (sessionId, userId, text) => {
+  const { data, error } = await supabase.from('session_comments')
+    .insert({ session_id: sessionId, user_id: userId, text })
+    .select('*, profiles(name, username)').single()
+  if (error) throw error
+  return data
+}
+
 // ── SOCIAL ────────────────────────────────────────────────
 export const searchUsers = async (query, currentUserId) => {
   const { data } = await supabase.from('profiles').select('id, name, username')
@@ -156,6 +212,15 @@ export const getFriendsFeed = async (userId) => {
 }
 export const getFriendPRs = async (friendId) => {
   const { data } = await supabase.from('personal_records').select('*').eq('user_id', friendId).order('muscle_group')
+  return data || []
+}
+export const getFriendSessions = async (friendId) => {
+  const { data } = await supabase
+    .from('sessions')
+    .select('*, exercises(*, sets(*)), cardio(*)')
+    .eq('user_id', friendId)
+    .not('completed_at', 'is', null)
+    .order('date', { ascending: false })
   return data || []
 }
 export const getFriendshipStatus = async (userId, friendId) => {
