@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { getProfile } from '../lib/db'
+import { getProfile, updateLastActive } from '../lib/db'
 
 const AuthContext = createContext(null)
 
@@ -28,14 +28,21 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       const u = session?.user ?? null
       setUser(u)
-      if (u) loadProfile(u.id)
+      if (u) {
+        loadProfile(u.id)
+        updateLastActive(u.id)
+      }
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
       const u = session?.user ?? null
       setUser(u)
-      if (u) loadProfile(u.id)
-      else setProfile(null)
+      if (u) {
+        loadProfile(u.id)
+        if (event === 'SIGNED_IN') updateLastActive(u.id)
+      } else {
+        setProfile(null)
+      }
     })
     return () => { mounted = false; subscription.unsubscribe() }
   }, [])

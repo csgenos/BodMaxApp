@@ -16,6 +16,9 @@ export const updateProfile = async (userId, d) => {
   if (error) throw error
   return data
 }
+export const updateLastActive = async (userId) => {
+  await supabase.from('profiles').update({ last_active: new Date().toISOString() }).eq('id', userId)
+}
 
 // ── SESSIONS ─────────────────────────────────────────────
 export const saveSession = async (userId, session) => {
@@ -244,9 +247,9 @@ export const getFriendRequests = async (userId) => {
 }
 export const getFriends = async (userId) => {
   const [{ data: sent }, { data: recv }] = await Promise.all([
-    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username)')
+    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username, last_active)')
       .eq('user_id', userId).eq('status', 'accepted'),
-    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username)')
+    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username, last_active)')
       .eq('friend_id', userId).eq('status', 'accepted'),
   ])
   return [

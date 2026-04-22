@@ -66,6 +66,16 @@ export default function Progress() {
     }).catch(e => { if (mounted.current) setError(e.message) })
   }, [profile?.id])
 
+  useEffect(() => {
+    if (tab === 'photos' && profile) loadPhotos()
+  }, [tab, profile?.id])
+
+  const loadPhotos = async () => {
+    setPhotosLoading(true)
+    setPhotos(await getProgressPhotos(profile.id))
+    setPhotosLoading(false)
+  }
+
   const handleAddWeight = async () => {
     if (!newWeight) return
     try {
@@ -111,8 +121,40 @@ export default function Progress() {
     setPrSaving(false)
   }
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    pendingFileRef.current = file
+    setShowPhotoForm(true)
+    e.target.value = ''
+  }
+
+  const handleUploadPhoto = async () => {
+    const file = pendingFileRef.current
+    if (!file) return
+    setPhotoUploading(true)
+    try {
+      await addProgressPhoto(profile.id, file, photoWeight ? +photoWeight : null, photoNotes || null)
+      await loadPhotos()
+      setShowPhotoForm(false)
+      setPhotoWeight('')
+      setPhotoNotes('')
+      pendingFileRef.current = null
+    } catch (e) {
+      alert('Upload failed: ' + e.message)
+    }
+    setPhotoUploading(false)
+  }
+
+  const handleDeletePhoto = async (photo) => {
+    if (!confirm('Delete this photo?')) return
+    await deleteProgressPhoto(photo.id, photo.photo_url)
+    setSelectedPhoto(null)
+    await loadPhotos()
+  }
+
   const weightChartData = weightLog.slice(-histRange).map(e => ({
-    date: new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+    date: new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     weight: e.weight
   }))
 

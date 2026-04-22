@@ -3,6 +3,9 @@ import { useAuth } from '../context/AuthContext'
 import { searchUsers, sendFriendRequest, getFriendsFeedAndFriends, getFriendPRs, getFriendSessions, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus, getSessionComments, addSessionComment, getLeaderboard } from '../lib/db'
 import { MUSCLE_GROUPS, calcSessionVolume, calcVolumes, getRank, getTotalVolume } from '../lib/ranks'
 
+const todayStr = () => new Date().toISOString().split('T')[0]
+const isActiveToday = (lastActive) => lastActive && lastActive.split('T')[0] === todayStr()
+
 export default function Social() {
   const { profile } = useAuth()
   const [tab, setTab] = useState('feed')
@@ -181,6 +184,8 @@ export default function Social() {
 
   const sortedLeaderboard = [...leaderboard].sort((a, b) =>
     competeMode === 'weekly' ? b.weeklyCount - a.weeklyCount : b.monthlyCount - a.monthlyCount)
+
+  const activeToday = friends.filter(f => isActiveToday(f.last_active))
 
   return (
     <div style={{ paddingBottom: 24 }}>

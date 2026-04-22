@@ -27,6 +27,10 @@ export default function Session() {
   const [sessions, setSessions] = useState([])
   const [showPicker, setShowPicker] = useState(false)
   const [showCardio, setShowCardio] = useState(false)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [showTemplateSave, setShowTemplateSave] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateSaving, setTemplateSaving] = useState(false)
   const [pickerGroup, setPickerGroup] = useState(MUSCLE_GROUPS[0])
   const [summary, setSummary] = useState(null)
   const [newPRs, setNewPRs] = useState([])
@@ -163,22 +167,53 @@ export default function Session() {
   }
 
   const addExercise = async (name, group) => {
-    const newEx = { id:uid(), name, muscleGroup:group, sets:[{id:uid(),weight:'',reps:''}] }
-    setActive(s => ({ ...s, exercises:[...s.exercises, newEx] }))
+    const newEx = { id: uid(), name, muscleGroup: group, sets: [{ id: uid(), weight: '', reps: '' }] }
+    setActive(s => ({ ...s, exercises: [...s.exercises, newEx] }))
     setShowPicker(false)
-    // Fetch suggestion
     const lastSets = await getLastExerciseSets(profile.id, name)
     if (lastSets?.length) {
-      const best = lastSets.reduce((a,b) => (+b.weight||0)>(+a.weight||0)?b:a)
+      const best = lastSets.reduce((a, b) => (+b.weight || 0) > (+a.weight || 0) ? b : a)
       setSuggestions(s => ({ ...s, [name]: { weight: best.weight, reps: best.reps } }))
     }
   }
 
   const removeExercise = id => setActive(s => ({ ...s, exercises: s.exercises.filter(e => e.id !== id) }))
-  const addSet = exId => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id===exId ? { ...ex, sets:[...ex.sets,{id:uid(),weight:'',reps:''}]} : ex) }))
-  const removeSet = (exId, setId) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id===exId ? { ...ex, sets: ex.sets.filter(st => st.id!==setId) } : ex) }))
-  const updateSet = (exId, setId, f, v) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id===exId ? { ...ex, sets: ex.sets.map(st => st.id===setId ? {...st,[f]:v} : st) } : ex) }))
-  const addCardio = c => { setActive(s => ({ ...s, cardio:[...s.cardio,{...c,id:uid()}] })); setShowCardio(false) }
+  const addSet = exId => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '' }] } : ex) }))
+  const removeSet = (exId, setId) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.filter(st => st.id !== setId) } : ex) }))
+  const updateSet = (exId, setId, f, v) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.map(st => st.id === setId ? { ...st, [f]: v } : st) } : ex) }))
+  const addCardio = c => { setActive(s => ({ ...s, cardio: [...s.cardio, { ...c, id: uid() }] })); setShowCardio(false) }
+
+  // ── REST TIMER ───────────────────────────────────────────
+  const startRest = async (duration) => {
+    // Request notification permission on first use
+    if (getNotifPermission() === 'default') await requestNotifPermission()
+
+    clearInterval(restIntervalRef.current)
+    setRestSeconds(duration)
+    setRestActive(true)
+    setRestDone(false)
+
+    let remaining = duration
+    restIntervalRef.current = setInterval(() => {
+      remaining--
+      setRestSeconds(remaining)
+      if (remaining <= 0) {
+        clearInterval(restIntervalRef.current)
+        setRestActive(false)
+        setRestDone(true)
+        setTimeout(() => setRestDone(false), 4000)
+        // Show notification — works even when app is backgrounded in standalone mode
+        showTimerNotification('Rest Complete ⏱', 'Time to get back to your workout!')
+      }
+    }, 1000)
+  }
+
+  const cancelRest = () => {
+    clearInterval(restIntervalRef.current)
+    setRestActive(false)
+    setRestSeconds(0)
+    setRestDone(false)
+  }
 
   const finishSession = async () => {
     setSaving(true)
@@ -205,11 +240,12 @@ export default function Session() {
     setSaving(false)
   }
 
-  const fmtTime = s => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`
+  const fmtTime = s => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+  const sessVol = exs => (exs || []).reduce((sum, ex) => sum + (ex.sets || []).reduce((s2, set) => s2 + ((+set.weight || 0) * (+set.reps || 0)), 0), 0)
 
-  const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:6, color:'var(--text)', padding:'8px 6px', fontSize:15, textAlign:'center', width:'100%', fontFamily:'var(--mono)' }
+  const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '8px 6px', fontSize: 15, textAlign: 'center', width: '100%', fontFamily: 'var(--mono)' }
 
-  // Summary
+  // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
     <div style={{ padding:'60px 20px', textAlign:'center' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
@@ -220,16 +256,39 @@ export default function Session() {
         <StatPill label="SETS" value={(summary.exercises||[]).reduce((s,e)=>s+e.sets.length,0)} />
       </div>
       {newPRs.length > 0 && (
-        <div style={{ background:'var(--accent-low)', border:'1px solid var(--accent)', borderRadius:12, padding:16, marginBottom:24 }}>
-          <div className="label" style={{ color:'var(--accent)', marginBottom:8 }}>🔥 NEW PRs</div>
-          {newPRs.map(pr => <div key={pr} style={{ fontWeight:600, marginBottom:4 }}>{pr}</div>)}
+        <div style={{ background: 'var(--accent-low)', border: '1px solid var(--accent)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
+          <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>🔥 NEW PRs</div>
+          {newPRs.map(pr => <div key={pr} style={{ fontWeight: 600, marginBottom: 4 }}>{pr}</div>)}
         </div>
       )}
-      <button onClick={() => { setSummary(null); setNewPRs([]); setView('list') }} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius)', padding:'14px 32px', color:'#fff', fontWeight:700, fontSize:15, width:'100%' }}>DONE</button>
+      {showTemplateSave ? (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16, textAlign: 'left' }}>
+          <div className="label" style={{ marginBottom: 10 }}>TEMPLATE NAME</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              autoFocus
+              style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '11px 12px', fontSize: 15 }}
+              placeholder="e.g. Push Day A"
+              value={templateName}
+              onChange={e => setTemplateName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
+            />
+            <button onClick={handleSaveTemplate} disabled={templateSaving || !templateName.trim()} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '11px 16px', color: '#fff', fontWeight: 700, fontSize: 13 }}>
+              {templateSaving ? '…' : 'SAVE'}
+            </button>
+            <button onClick={() => setShowTemplateSave(false)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '11px 12px', color: 'var(--text-dim)' }}>×</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowTemplateSave(true)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 32px', color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, width: '100%', marginBottom: 12 }}>
+          SAVE AS TEMPLATE
+        </button>
+      )}
+      <button onClick={() => { setSummary(null); setNewPRs([]); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
     </div>
   )
 
-  // Active session
+  // ── ACTIVE SESSION ────────────────────────────────────────
   if (view === 'active' && active) return (
     <div style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -246,41 +305,41 @@ export default function Session() {
         </div>
       </div>
 
-      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {active.exercises.map(ex => (
-          <div key={ex.id} className="card" style={{ padding:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+          <div key={ex.id} className="card" style={{ padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div>
-                <div style={{ fontWeight:700, fontSize:15 }}>{ex.name}</div>
-                <div style={{ fontSize:9, color:'var(--accent)', letterSpacing:'2px', fontFamily:'var(--mono)', marginTop:2 }}>{ex.muscleGroup}</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                <div style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: '2px', fontFamily: 'var(--mono)', marginTop: 2 }}>{ex.muscleGroup}</div>
                 {suggestions[ex.name] && (
-                  <div style={{ fontSize:11, color:'#4a9eb5', marginTop:4, background:'rgba(74,158,181,0.1)', borderRadius:6, padding:'3px 8px', display:'inline-block' }}>
+                  <div style={{ fontSize: 11, color: '#4a9eb5', marginTop: 4, background: 'rgba(74,158,181,0.1)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
                     💡 Last: {suggestions[ex.name].weight} lbs × {suggestions[ex.name].reps} reps
                   </div>
                 )}
               </div>
-              <button onClick={() => removeExercise(ex.id)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:20 }}>×</button>
+              <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'20px 1fr 1fr 28px', gap:6, marginBottom:6 }}>
-              <span className="label">#</span><span className="label" style={{ textAlign:'center' }}>LBS</span><span className="label" style={{ textAlign:'center' }}>REPS</span><span/>
+            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6 }}>
+              <span className="label">#</span><span className="label" style={{ textAlign: 'center' }}>LBS</span><span className="label" style={{ textAlign: 'center' }}>REPS</span><span />
             </div>
-            {ex.sets.map((set,i) => (
-              <div key={set.id} style={{ display:'grid', gridTemplateColumns:'20px 1fr 1fr 28px', gap:6, marginBottom:6, alignItems:'center' }}>
-                <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', textAlign:'center' }}>{i+1}</span>
-                <input style={INP} type="number" inputMode="decimal" placeholder={suggestions[ex.name]?.weight||'0'} value={set.weight} onChange={e=>updateSet(ex.id,set.id,'weight',e.target.value)} />
-                <input style={INP} type="number" inputMode="numeric" placeholder={suggestions[ex.name]?.reps||'0'} value={set.reps} onChange={e=>updateSet(ex.id,set.id,'reps',e.target.value)} />
-                <button onClick={()=>removeSet(ex.id,set.id)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:18 }}>−</button>
+            {ex.sets.map((set, i) => (
+              <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textAlign: 'center' }}>{i + 1}</span>
+                <input style={INP} type="number" inputMode="decimal" placeholder={suggestions[ex.name]?.weight || '0'} value={set.weight} onChange={e => updateSet(ex.id, set.id, 'weight', e.target.value)} />
+                <input style={INP} type="number" inputMode="numeric" placeholder={suggestions[ex.name]?.reps || '0'} value={set.reps} onChange={e => updateSet(ex.id, set.id, 'reps', e.target.value)} />
+                <button onClick={() => removeSet(ex.id, set.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18 }}>−</button>
               </div>
             ))}
-            <button onClick={()=>addSet(ex.id)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'8px', width:'100%', color:'var(--text-muted)', fontSize:12, marginTop:6 }}>+ ADD SET</button>
+            <button onClick={() => addSet(ex.id)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px', width: '100%', color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>+ ADD SET</button>
           </div>
         ))}
 
         {active.cardio.map(c => (
-          <div key={c.id} className="card" style={{ padding:14, borderColor:'#1a3a4a' }}>
-            <div style={{ fontSize:9, color:'#4a9eb5', letterSpacing:'2px', fontFamily:'var(--mono)', marginBottom:4 }}>CARDIO</div>
-            <div style={{ fontWeight:600 }}>{c.type}</div>
-            <div style={{ fontSize:12, color:'var(--text-dim)', marginTop:2 }}>{c.duration} min{c.distance?` · ${c.distance} mi`:''}{c.calories?` · ${c.calories} kcal`:''}</div>
+          <div key={c.id} className="card" style={{ padding: 14, borderColor: '#1a3a4a' }}>
+            <div style={{ fontSize: 9, color: '#4a9eb5', letterSpacing: '2px', fontFamily: 'var(--mono)', marginBottom: 4 }}>CARDIO</div>
+            <div style={{ fontWeight: 600 }}>{c.type}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{c.duration} min{c.distance ? ` · ${c.distance} mi` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}</div>
           </div>
         ))}
 
@@ -324,24 +383,24 @@ export default function Session() {
     </div>
   )
 
-  // Calendar view
+  // ── CALENDAR VIEW ─────────────────────────────────────────
   if (view === 'calendar') {
     const sessionDates = new Set(sessions.map(s => s.date?.split('T')[0]))
     const year = calMonth.getFullYear(), month = calMonth.getMonth()
     const firstDay = new Date(year, month, 1).getDay()
-    const daysInMonth = new Date(year, month+1, 0).getDate()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
     const cells = []
     for (let i = 0; i < firstDay; i++) cells.push(null)
     for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-    const monthStr = calMonth.toLocaleDateString('en-US', { month:'long', year:'numeric' })
+    const monthStr = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
     return (
-      <div style={{ padding:'52px 20px 24px' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-          <h2 style={{ fontSize:24, fontWeight:800 }}>Sessions</h2>
-          <div style={{ display:'flex', gap:8 }}>
-            <TabBtn active={view==='list'} onClick={()=>setView('list')}>LIST</TabBtn>
-            <TabBtn active={view==='calendar'} onClick={()=>setView('calendar')}>CAL</TabBtn>
+      <div style={{ padding: '52px 20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 24, fontWeight: 800 }}>Sessions</h2>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <TabBtn active={false} onClick={() => setView('list')}>LIST</TabBtn>
+            <TabBtn active={true} onClick={() => setView('calendar')}>CAL</TabBtn>
           </div>
         </div>
         <div style={{ display:'flex', gap:8, marginBottom:24 }}>
@@ -354,19 +413,19 @@ export default function Session() {
           <span style={{ fontWeight:700 }}>{monthStr}</span>
           <button onClick={()=>setCalMonth(new Date(year,month+1,1))} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'6px 12px', color:'var(--text-dim)' }}>›</button>
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4, marginBottom:8 }}>
-          {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} style={{ textAlign:'center', fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', padding:'4px 0' }}>{d}</div>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', padding: '4px 0' }}>{d}</div>)}
         </div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:4 }}>
-          {cells.map((d,i) => {
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+          {cells.map((d, i) => {
             if (!d) return <div key={i} />
-            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
             const hasSession = sessionDates.has(dateStr)
             const isToday = dateStr === new Date().toISOString().split('T')[0]
             return (
-              <div key={i} style={{ aspectRatio:'1', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', borderRadius:'var(--radius-sm)', background:hasSession?'var(--accent-low)':isToday?'var(--bg3)':'transparent', border:`1px solid ${isToday?'var(--accent)':'transparent'}`, position:'relative' }}>
-                <span style={{ fontSize:13, fontWeight:isToday?700:400, color:hasSession?'var(--accent)':isToday?'var(--accent)':'var(--text-dim)' }}>{d}</span>
-                {hasSession && <div style={{ width:4, height:4, background:'var(--accent)', borderRadius:'50%', marginTop:2 }} />}
+              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: hasSession ? 'var(--accent-low)' : isToday ? 'var(--bg3)' : 'transparent', border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}` }}>
+                <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 400, color: hasSession ? 'var(--accent)' : isToday ? 'var(--accent)' : 'var(--text-dim)' }}>{d}</span>
+                {hasSession && <div style={{ width: 4, height: 4, background: 'var(--accent)', borderRadius: '50%', marginTop: 2 }} />}
               </div>
             )
           })}
@@ -376,14 +435,14 @@ export default function Session() {
     )
   }
 
-  // List view
+  // ── LIST VIEW ─────────────────────────────────────────────
   return (
-    <div style={{ padding:'52px 20px 24px' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-        <h2 style={{ fontSize:26, fontWeight:800 }}>Sessions</h2>
-        <div style={{ display:'flex', gap:8 }}>
-          <TabBtn active={view==='list'} onClick={()=>setView('list')}>LIST</TabBtn>
-          <TabBtn active={view==='calendar'} onClick={()=>setView('calendar')}>CAL</TabBtn>
+    <div style={{ padding: '52px 20px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <h2 style={{ fontSize: 26, fontWeight: 800 }}>Sessions</h2>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <TabBtn active={true} onClick={() => setView('list')}>LIST</TabBtn>
+          <TabBtn active={false} onClick={() => setView('calendar')}>CAL</TabBtn>
         </div>
       </div>
       <p style={{ color:'var(--text-dim)', marginBottom:24, fontSize:14 }}>Log workouts, track your lifts</p>
@@ -393,9 +452,9 @@ export default function Session() {
       </div>
 
       {sessions.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)', fontSize:13 }}>No sessions yet</div>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>No sessions yet</div>
       ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {sessions.map(s => {
             const vol = calcSessionVolume(s)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
@@ -435,14 +494,14 @@ export default function Session() {
 }
 
 function TabBtn({ active, onClick, children }) {
-  return <button onClick={onClick} style={{ background:active?'var(--accent-low)':'var(--bg3)', border:`1px solid ${active?'var(--accent)':'var(--border)'}`, borderRadius:6, padding:'6px 12px', color:active?'var(--accent)':'var(--text-muted)', fontSize:10, fontWeight:700, letterSpacing:'1px', fontFamily:'var(--mono)' }}>{children}</button>
+  return <button onClick={onClick} style={{ background: active ? 'var(--accent-low)' : 'var(--bg3)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 6, padding: '6px 12px', color: active ? 'var(--accent)' : 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '1px', fontFamily: 'var(--mono)' }}>{children}</button>
 }
 
 function StatPill({ label, value }) {
   return (
-    <div className="card" style={{ flex:1, padding:14, textAlign:'center' }}>
-      <div className="label" style={{ marginBottom:4 }}>{label}</div>
-      <div style={{ fontSize:18, fontWeight:700, fontFamily:'var(--mono)' }}>{value}</div>
+    <div className="card" style={{ flex: 1, padding: 14, textAlign: 'center' }}>
+      <div className="label" style={{ marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)' }}>{value}</div>
     </div>
   )
 }
@@ -458,8 +517,8 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose }) {
   }
   return (
     <Modal onClose={onClose} title="ADD EXERCISE">
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
-        {MUSCLE_GROUPS.map(g => <button key={g} onClick={()=>onGroupChange(g)} style={{ padding:'6px 12px', borderRadius:20, border:'none', background:group===g?'var(--accent)':'var(--bg3)', color:group===g?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600 }}>{g}</button>)}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: group === g ? 'var(--accent)' : 'var(--bg3)', color: group === g ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{g}</button>)}
       </div>
       {showCustom ? (
         <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
@@ -548,29 +607,29 @@ function CardioModal({ onAdd, onClose }) {
   const [duration, setDuration] = useState('')
   const [distance, setDistance] = useState('')
   const [calories, setCalories] = useState('')
-  const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'11px 12px', fontSize:15, width:'100%' }
+  const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '11px 12px', fontSize: 15, width: '100%' }
   return (
     <Modal onClose={onClose} title="ADD CARDIO">
-      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
-        {CARDIO_TYPES.map(t => <button key={t} onClick={()=>setType(t)} style={{ padding:'6px 12px', borderRadius:20, border:'none', background:type===t?'#4a9eb5':'var(--bg3)', color:type===t?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600 }}>{t}</button>)}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+        {CARDIO_TYPES.map(t => <button key={t} onClick={() => setType(t)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: type === t ? '#4a9eb5' : 'var(--bg3)', color: type === t ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{t}</button>)}
       </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:16 }}>
-        <input style={INP} type="number" placeholder="Duration (minutes) *" value={duration} onChange={e=>setDuration(e.target.value)} />
-        <input style={INP} type="number" placeholder="Distance (miles) — optional" value={distance} onChange={e=>setDistance(e.target.value)} />
-        <input style={INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e=>setCalories(e.target.value)} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        <input style={INP} type="number" placeholder="Duration (minutes) *" value={duration} onChange={e => setDuration(e.target.value)} />
+        <input style={INP} type="number" placeholder="Distance (miles) — optional" value={distance} onChange={e => setDistance(e.target.value)} />
+        <input style={INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e => setCalories(e.target.value)} />
       </div>
-      <button onClick={()=>duration&&onAdd({type,duration:+duration,distance:distance?+distance:null,calories:calories?+calories:null})} style={{ background:'#4a9eb5', border:'none', borderRadius:'var(--radius-sm)', padding:14, width:'100%', color:'#fff', fontWeight:700, fontSize:14 }}>ADD CARDIO</button>
+      <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
     </Modal>
   )
 }
 
 function Modal({ children, onClose, title }) {
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
-      <div style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', padding:'24px 20px 40px', width:'100%', maxHeight:'80vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <span className="label">{title}</span>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
         </div>
         {children}
       </div>
