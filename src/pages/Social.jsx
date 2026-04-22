@@ -40,12 +40,19 @@ export default function Social() {
     catch { alert('Friend request already sent') }
   }
 
-  const handleAccept = async (id) => { await acceptFriendRequest(id); load() }
-  const handleDecline = async (id) => { await declineFriendRequest(id); load() }
+  const handleAccept = async (id) => {
+    try { await acceptFriendRequest(profile.id, id); load() }
+    catch (e) { alert(e.message) }
+  }
+  const handleDecline = async (id) => {
+    try { await declineFriendRequest(profile.id, id); load() }
+    catch (e) { alert(e.message) }
+  }
 
   const viewFriendPRs = async (friend) => {
     setSelectedFriend(friend)
-    setFriendPRs(await getFriendPRs(friend.id))
+    try { setFriendPRs(await getFriendPRs(friend.id)) }
+    catch { setFriendPRs([]) }
   }
 
   if (selectedFriend) return (

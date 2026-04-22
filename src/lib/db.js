@@ -18,28 +18,27 @@ export const updateProfile = async (userId, d) => {
 
 // ── SESSIONS ─────────────────────────────────────────────
 export const saveSession = async (userId, session) => {
-  const { data: sess, error } = await supabase
-    .from('sessions')
-    .insert({ user_id: userId, date: session.date, duration: session.duration, completed_at: session.completedAt || new Date().toISOString() })
-    .select().single()
+  const payload = {
+    date: session.date,
+    duration: session.duration,
+    completed_at: session.completedAt || new Date().toISOString(),
+    exercises: (session.exercises || []).map(ex => ({
+      name: ex.name,
+      muscle_group: ex.muscleGroup,
+      sets: (ex.sets || [])
+        .filter(s => s.weight && s.reps)
+        .map(s => ({ weight: +s.weight, reps: +s.reps })),
+    })),
+    cardio: (session.cardio || []).map(c => ({
+      type: c.type,
+      duration: c.duration,
+      distance: c.distance ?? null,
+      calories: c.calories ?? null,
+    })),
+  }
+  const { data, error } = await supabase.rpc('save_session', { payload })
   if (error) throw error
-
-  for (let i = 0; i < (session.exercises || []).length; i++) {
-    const ex = session.exercises[i]
-    const { data: exRow } = await supabase
-      .from('exercises')
-      .insert({ session_id: sess.id, name: ex.name, muscle_group: ex.muscleGroup, order_index: i })
-      .select().single()
-    if (!exRow) continue
-    const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
-    for (let j = 0; j < validSets.length; j++) {
-      await supabase.from('sets').insert({ exercise_id: exRow.id, weight: +validSets[j].weight, reps: +validSets[j].reps, set_number: j + 1 })
-    }
-  }
-  for (const c of (session.cardio || [])) {
-    await supabase.from('cardio').insert({ session_id: sess.id, type: c.type, duration: c.duration, distance: c.distance || null, calories: c.calories || null })
-  }
-  return sess.id
+  return data
 }
 
 export const getSessions = async (userId) => {
@@ -66,6 +65,27 @@ export const getLastExerciseSets = async (userId, exerciseName) => {
   return sorted[0]?.sets || null
 }
 
+// ── WORKOUT TEMPLATES ────────────────────────────────────
+export const getTemplates = async (userId) => {
+  const { data } = await supabase.from('workout_templates').select('*')
+    .eq('user_id', userId).order('created_at', { ascending: false })
+  return data || []
+}
+export const saveTemplate = async (userId, name, exercises) => {
+  const payload = (exercises || []).map(ex => ({
+    name: ex.name,
+    muscleGroup: ex.muscleGroup || ex.muscle_group,
+  }))
+  const { data, error } = await supabase.from('workout_templates')
+    .insert({ user_id: userId, name, exercises: payload })
+    .select().single()
+  if (error) throw error
+  return data
+}
+export const deleteTemplate = async (id) => {
+  await supabase.from('workout_templates').delete().eq('id', id)
+}
+
 // ── DIET ─────────────────────────────────────────────────
 export const getDietByDate = async (userId, date) => {
   const { data } = await supabase.from('diet_entries').select('*')
@@ -77,8 +97,9 @@ export const addDietEntry = async (userId, entry) => {
   if (error) throw error
   return data
 }
-export const deleteDietEntry = async (id) => {
-  await supabase.from('diet_entries').delete().eq('id', id)
+export const deleteDietEntry = async (userId, id) => {
+  const { error } = await supabase.from('diet_entries').delete().eq('id', id).eq('user_id', userId)
+  if (error) throw error
 }
 
 // ── WEIGHT ────────────────────────────────────────────────
@@ -88,6 +109,24 @@ export const getWeightLog = async (userId) => {
 }
 export const addWeight = async (userId, date, weight) => {
   await supabase.from('weight_log').insert({ user_id: userId, date, weight })
+}
+
+// ── BODY MEASUREMENTS ────────────────────────────────────
+export const getBodyMeasurements = async (userId) => {
+  const { data } = await supabase.from('body_measurements').select('*')
+    .eq('user_id', userId).order('date', { ascending: true })
+  return data || []
+}
+export const addBodyMeasurement = async (userId, entry) => {
+  const { data, error } = await supabase.from('body_measurements')
+    .insert({ user_id: userId, ...entry }).select().single()
+  if (error) throw error
+  return data
+}
+export const deleteBodyMeasurement = async (userId, id) => {
+  const { error } = await supabase.from('body_measurements').delete()
+    .eq('id', id).eq('user_id', userId)
+  if (error) throw error
 }
 
 // ── PRs ───────────────────────────────────────────────────
@@ -119,11 +158,20 @@ export const sendFriendRequest = async (userId, friendId) => {
   const { error } = await supabase.from('friendships').insert({ user_id: userId, friend_id: friendId, status: 'pending' })
   if (error) throw error
 }
-export const acceptFriendRequest = async (id) => {
-  await supabase.from('friendships').update({ status: 'accepted' }).eq('id', id)
+// Ownership check: only the recipient (friend_id) may accept.
+// RLS also enforces this on the server; the explicit .eq is defense in depth.
+export const acceptFriendRequest = async (userId, id) => {
+  const { error } = await supabase.from('friendships')
+    .update({ status: 'accepted' })
+    .eq('id', id)
+    .eq('friend_id', userId)
+  if (error) throw error
 }
-export const declineFriendRequest = async (id) => {
-  await supabase.from('friendships').delete().eq('id', id)
+export const declineFriendRequest = async (userId, id) => {
+  const { error } = await supabase.from('friendships').delete()
+    .eq('id', id)
+    .eq('friend_id', userId)
+  if (error) throw error
 }
 export const getFriendRequests = async (userId) => {
   const { data } = await supabase.from('friendships')
@@ -154,8 +202,10 @@ export const getFriendsFeed = async (userId) => {
     .order('date', { ascending: false }).limit(40)
   return data || []
 }
+// Server-enforced friendship check via RPC (see supabase/schema.sql).
 export const getFriendPRs = async (friendId) => {
-  const { data } = await supabase.from('personal_records').select('*').eq('user_id', friendId).order('muscle_group')
+  const { data, error } = await supabase.rpc('get_friend_prs', { friend: friendId })
+  if (error) throw error
   return data || []
 }
 export const getFriendshipStatus = async (userId, friendId) => {

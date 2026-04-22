@@ -8,7 +8,7 @@ export default function Diet() {
   const { profile } = useAuth()
   const [entries, setEntries] = useState([])
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ meal:'', calories:'', protein:'', photo:null })
+  const [form, setForm] = useState({ meal:'', calories:'', protein:'', carbs:'', fat:'', photo:null })
   const [saving, setSaving] = useState(false)
   const fileRef = useRef()
 
@@ -17,8 +17,13 @@ export default function Diet() {
 
   const totalCal = entries.reduce((s,e) => s+(e.calories||0), 0)
   const totalProt = entries.reduce((s,e) => s+(e.protein||0), 0)
-  const calPct = Math.min(100, profile ? Math.round(totalCal/profile.target_calories*100) : 0)
-  const protPct = Math.min(100, profile ? Math.round(totalProt/profile.target_protein*100) : 0)
+  const totalCarbs = entries.reduce((s,e) => s+(e.carbs||0), 0)
+  const totalFat = entries.reduce((s,e) => s+(e.fat||0), 0)
+  const pct = (cur, target) => target ? Math.min(100, Math.round(cur/target*100)) : 0
+  const calPct  = pct(totalCal,   profile?.target_calories)
+  const protPct = pct(totalProt,  profile?.target_protein)
+  const carbPct = pct(totalCarbs, profile?.target_carbs)
+  const fatPct  = pct(totalFat,   profile?.target_fat)
 
   const handlePhoto = e => {
     const file = e.target.files[0]; if (!file) return
@@ -31,8 +36,17 @@ export default function Diet() {
     if (!form.meal || !form.calories) return
     setSaving(true)
     try {
-      await addDietEntry(profile.id, { date: todayStr(), meal: form.meal, calories: +form.calories, protein: form.protein ? +form.protein : 0, photo_url: form.photo, time: new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) })
-      setForm({ meal:'', calories:'', protein:'', photo:null })
+      await addDietEntry(profile.id, {
+        date: todayStr(),
+        meal: form.meal,
+        calories: +form.calories,
+        protein: form.protein ? +form.protein : 0,
+        carbs: form.carbs ? +form.carbs : 0,
+        fat: form.fat ? +form.fat : 0,
+        photo_url: form.photo,
+        time: new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),
+      })
+      setForm({ meal:'', calories:'', protein:'', carbs:'', fat:'', photo:null })
       setShowAdd(false)
       await load()
     } catch(e) { alert(e.message) }
@@ -40,8 +54,8 @@ export default function Diet() {
   }
 
   const handleDelete = async id => {
-    await deleteDietEntry(id)
-    await load()
+    try { await deleteDietEntry(profile.id, id); await load() }
+    catch(e) { alert(e.message) }
   }
 
   const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'12px 14px', fontSize:15, width:'100%' }
@@ -50,10 +64,20 @@ export default function Diet() {
     <div style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 20px', background:'var(--bg2)', borderBottom:'1px solid var(--border)' }}>
         <h2 style={{ fontSize:26, fontWeight:800, marginBottom:16 }}>Diet</h2>
-        <MacroBar label="CALORIES" current={totalCal} target={profile?.target_calories} unit="" pct={calPct} color="var(--accent)" />
+        <MacroBar label="CALORIES" current={totalCal.toLocaleString()}  target={(profile?.target_calories||0).toLocaleString()} pct={calPct}  color="var(--accent)" />
         <div style={{ marginTop:10 }}>
-          <MacroBar label="PROTEIN" current={`${totalProt}g`} target={`${profile?.target_protein}g`} unit="" pct={protPct} color="#4a9eb5" />
+          <MacroBar label="PROTEIN" current={`${totalProt}g`} target={`${profile?.target_protein||0}g`} pct={protPct} color="#4a9eb5" />
         </div>
+        {(profile?.target_carbs || totalCarbs > 0) && (
+          <div style={{ marginTop:10 }}>
+            <MacroBar label="CARBS" current={`${totalCarbs}g`} target={`${profile?.target_carbs||0}g`} pct={carbPct} color="#c88a2e" />
+          </div>
+        )}
+        {(profile?.target_fat || totalFat > 0) && (
+          <div style={{ marginTop:10 }}>
+            <MacroBar label="FAT" current={`${totalFat}g`} target={`${profile?.target_fat||0}g`} pct={fatPct} color="#9a5ad4" />
+          </div>
+        )}
       </div>
 
       <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:8 }}>
@@ -71,9 +95,11 @@ export default function Diet() {
                 </div>
                 <button onClick={() => handleDelete(entry.id)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:18, padding:'0 0 0 8px' }}>×</button>
               </div>
-              <div style={{ display:'flex', gap:14, marginTop:8 }}>
+              <div style={{ display:'flex', gap:14, marginTop:8, flexWrap:'wrap' }}>
                 <span style={{ fontSize:13, color:'var(--accent)', fontWeight:700, fontFamily:'var(--mono)' }}>{entry.calories} kcal</span>
-                {entry.protein > 0 && <span style={{ fontSize:13, color:'#4a9eb5', fontWeight:700, fontFamily:'var(--mono)' }}>{entry.protein}g protein</span>}
+                {entry.protein > 0 && <span style={{ fontSize:13, color:'#4a9eb5', fontWeight:700, fontFamily:'var(--mono)' }}>{entry.protein}g P</span>}
+                {entry.carbs   > 0 && <span style={{ fontSize:13, color:'#c88a2e', fontWeight:700, fontFamily:'var(--mono)' }}>{entry.carbs}g C</span>}
+                {entry.fat     > 0 && <span style={{ fontSize:13, color:'#9a5ad4', fontWeight:700, fontFamily:'var(--mono)' }}>{entry.fat}g F</span>}
               </div>
             </div>
           </div>
@@ -87,6 +113,10 @@ export default function Diet() {
           <div style={{ display:'flex', gap:10 }}>
             <input style={INP} type="number" placeholder="Calories *" value={form.calories} onChange={e=>setForm(f=>({...f,calories:e.target.value}))} />
             <input style={INP} type="number" placeholder="Protein (g)" value={form.protein} onChange={e=>setForm(f=>({...f,protein:e.target.value}))} />
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <input style={INP} type="number" placeholder="Carbs (g)" value={form.carbs} onChange={e=>setForm(f=>({...f,carbs:e.target.value}))} />
+            <input style={INP} type="number" placeholder="Fat (g)" value={form.fat} onChange={e=>setForm(f=>({...f,fat:e.target.value}))} />
           </div>
           <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display:'none' }} />
           {form.photo ? (
