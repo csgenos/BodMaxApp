@@ -61,7 +61,8 @@ export const getLastExerciseSets = async (userId, exerciseName) => {
     .from('exercises').select('id, session_id, sets(*)')
     .eq('name', exerciseName).in('session_id', ids)
   if (!exRows?.length) return null
-  const sorted = exRows.sort((a, b) => ids.indexOf(a.session_id) - ids.indexOf(b.session_id))
+  const idRank = new Map(ids.map((id, i) => [id, i]))
+  const sorted = exRows.sort((a, b) => (idRank.get(a.session_id) ?? Infinity) - (idRank.get(b.session_id) ?? Infinity))
   return sorted[0]?.sets || null
 }
 
@@ -191,16 +192,16 @@ export const getFriends = async (userId) => {
     ...(recv || []).map(f => f.profiles),
   ].filter(Boolean)
 }
-export const getFriendsFeed = async (userId) => {
+export const getFriendsFeedAndFriends = async (userId) => {
   const friends = await getFriends(userId)
-  if (!friends.length) return []
+  if (!friends.length) return { feed: [], friends: [] }
   const { data } = await supabase
     .from('sessions')
     .select('*, exercises(*, sets(*)), cardio(*), profiles!sessions_user_id_fkey(name, username)')
     .in('user_id', friends.map(f => f.id))
     .not('completed_at', 'is', null)
     .order('date', { ascending: false }).limit(40)
-  return data || []
+  return { feed: data || [], friends }
 }
 // Server-enforced friendship check via RPC (see supabase/schema.sql).
 export const getFriendPRs = async (friendId) => {

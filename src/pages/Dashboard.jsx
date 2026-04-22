@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getSessions, getDietByDate } from '../lib/db'
-import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS } from '../lib/ranks'
+import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 
@@ -69,7 +69,7 @@ export default function Dashboard() {
         {recent.length === 0 ? (
           <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>No sessions yet — start lifting 💪</div>
         ) : recent.map(s => {
-          const vol = (s.exercises||[]).reduce((sum,ex) => sum+(ex.sets||[]).reduce((s2,set) => s2+((+set.weight||0)*(+set.reps||0)),0),0)
+          const vol = calcSessionVolume(s)
           const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
           return (
             <div key={s.id} className="card" style={{ padding:14, marginBottom:8 }}>
