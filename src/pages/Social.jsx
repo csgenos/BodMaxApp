@@ -7,7 +7,7 @@ const todayStr = () => new Date().toISOString().split('T')[0]
 const isActiveToday = (lastActive) => lastActive && lastActive.split('T')[0] === todayStr()
 
 export default function Social() {
-  const { profile } = useAuth()
+  const { profile, socialCounts, updateSocialCounts, markFeedSeen, markRequestsSeen } = useAuth()
   const [tab, setTab] = useState('feed')
   const [feed, setFeed] = useState([])
   const [friends, setFriends] = useState([])
@@ -36,6 +36,9 @@ export default function Social() {
 
   useEffect(() => { if (profile) load() }, [profile?.id])
 
+  // Clear feed badge as soon as the Social page opens (default tab is feed)
+  useEffect(() => { markFeedSeen() }, [])
+
   useEffect(() => {
     if (tab === 'compete' && profile && leaderboard.length === 0) loadLeaderboard()
   }, [tab])
@@ -49,8 +52,17 @@ export default function Social() {
       ])
       if (!mounted.current) return
       setFeed(f); setFriends(fr); setRequests(req)
+      const lastSeen = localStorage.getItem('lastFeedSeen') || new Date(0).toISOString()
+      const newFeed = f.filter(s => s.completed_at > lastSeen).length
+      updateSocialCounts({ requests: req.length, feed: newFeed })
     } catch (e) { if (mounted.current) setError(e.message) }
     if (mounted.current) setLoading(false)
+  }
+
+  const switchTab = (key) => {
+    setTab(key)
+    if (key === 'feed') markFeedSeen()
+    if (key === 'add') markRequestsSeen()
   }
 
   const loadLeaderboard = async () => {
@@ -193,13 +205,18 @@ export default function Social() {
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Social</h2>
         <div style={{ display: 'flex' }}>
           {[
-            { key: 'feed', label: 'FEED' },
-            { key: 'friends', label: 'FRIENDS' },
-            { key: 'add', label: requests.length ? `ADD (${requests.length})` : 'ADD' },
-            { key: 'compete', label: 'COMPETE' },
-          ].map(({ key, label }) => (
-            <button key={key} onClick={() => setTab(key)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === key ? 'var(--accent)' : 'transparent'}`, color: tab === key ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '8px', letterSpacing: '2px', fontFamily: 'var(--mono)', fontWeight: 600 }}>
+            { key: 'feed',    label: 'FEED',    badge: socialCounts?.feed     || 0 },
+            { key: 'friends', label: 'FRIENDS', badge: 0 },
+            { key: 'add',     label: 'ADD',     badge: socialCounts?.requests || 0 },
+            { key: 'compete', label: 'COMPETE', badge: 0 },
+          ].map(({ key, label, badge }) => (
+            <button key={key} onClick={() => switchTab(key)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === key ? 'var(--accent)' : 'transparent'}`, color: tab === key ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '8px', letterSpacing: '2px', fontFamily: 'var(--mono)', fontWeight: 600, position: 'relative' }}>
               {label}
+              {badge > 0 && (
+                <span style={{ position: 'absolute', top: 4, right: '50%', transform: 'translateX(14px)', background: 'var(--accent)', color: '#fff', borderRadius: 10, fontSize: 8, fontWeight: 700, minWidth: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', fontFamily: 'var(--mono)' }}>
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
             </button>
           ))}
         </div>

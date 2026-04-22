@@ -289,6 +289,23 @@ export const getFriendshipStatus = async (userId, friendId) => {
   return data
 }
 
+export const getSocialNotifCounts = async (userId, lastFeedSeen) => {
+  const { count: reqCount } = await supabase
+    .from('friendships')
+    .select('*', { count: 'exact', head: true })
+    .eq('friend_id', userId)
+    .eq('status', 'pending')
+  const friends = await getFriends(userId)
+  if (!friends.length) return { requests: reqCount || 0, feed: 0 }
+  const { count: feedCount } = await supabase
+    .from('sessions')
+    .select('*', { count: 'exact', head: true })
+    .in('user_id', friends.map(f => f.id))
+    .not('completed_at', 'is', null)
+    .gt('completed_at', lastFeedSeen)
+  return { requests: reqCount || 0, feed: feedCount || 0 }
+}
+
 export const getLeaderboard = async (userId, currentProfile) => {
   const friends = await getFriends(userId)
   const allIds = [...friends.map(f => f.id), userId]
