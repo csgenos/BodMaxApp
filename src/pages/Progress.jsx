@@ -3,8 +3,9 @@ import { useAuth } from '../context/AuthContext'
 import {
   getWeightLog, addWeight, getPRs, getSessions,
   getBodyMeasurements, addBodyMeasurement, deleteBodyMeasurement,
+  checkAndUpdatePR,
 } from '../lib/db'
-import { calcVolumes, getRank, MUSCLE_GROUPS } from '../lib/ranks'
+import { calcVolumes, getRank, MUSCLE_GROUPS, EXERCISES } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
 const TT = { contentStyle:{ background:'#141414', border:'1px solid #222', borderRadius:8, color:'#f0f0f0', fontSize:12 }, cursor:{ stroke:'#333' } }
@@ -35,6 +36,10 @@ export default function Progress() {
   const [measurements, setMeasurements] = useState([])
   const [showAddM, setShowAddM] = useState(false)
   const [mForm, setMForm] = useState({})
+  const [showAddPR, setShowAddPR] = useState(false)
+  const [prForm, setPrForm] = useState({ muscleGroup: MUSCLE_GROUPS[0], exercise: '', customExercise: '', weight: '', reps: '' })
+  const [prStatus, setPrStatus] = useState(null) // 'new' | 'same' | null
+  const [prSaving, setPrSaving] = useState(false)
 
   useEffect(() => {
     if (!profile) return
@@ -67,6 +72,22 @@ export default function Progress() {
   const handleDeleteMeasurement = async (id) => {
     try { await deleteBodyMeasurement(profile.id, id); setMeasurements(await getBodyMeasurements(profile.id)) }
     catch(e) { alert(e.message) }
+  }
+
+  const handleLogPR = async () => {
+    const name = (prForm.exercise === '__custom__' ? prForm.customExercise : prForm.exercise).trim()
+    if (!name || !prForm.weight || !prForm.reps) return
+    setPrSaving(true)
+    try {
+      const isNew = await checkAndUpdatePR(profile.id, name, prForm.muscleGroup, +prForm.weight, +prForm.reps)
+      setPRs(await getPRs(profile.id))
+      setPrStatus(isNew ? 'new' : 'same')
+      if (isNew) {
+        setPrForm({ muscleGroup: MUSCLE_GROUPS[0], exercise: '', customExercise: '', weight: '', reps: '' })
+        setShowAddPR(false)
+      }
+    } catch (e) { alert(e.message) }
+    setPrSaving(false)
   }
 
   const weightChartData = weightLog.slice(-histRange).map(e => ({
@@ -303,7 +324,8 @@ export default function Progress() {
         {/* PRs TAB */}
         {tab === 'prs' && (
           <div>
-            {prs.length === 0 && <Empty>No PRs yet. Log a session.</Empty>}
+            <button onClick={()=>{ setPrStatus(null); setShowAddPR(true) }} style={{ width:'100%', background:'var(--accent)', border:'none', borderRadius:'var(--radius)', padding:14, color:'#fff', fontWeight:700, fontSize:14, marginBottom:16 }}>+ LOG PR</button>
+            {prs.length === 0 && <Empty>No PRs yet. Log one above or finish a session.</Empty>}
             {MUSCLE_GROUPS.map(g => {
               const gPRs = prs.filter(p => p.muscle_group === g)
               if (!gPRs.length) return null
@@ -327,6 +349,16 @@ export default function Progress() {
                 </div>
               )
             })}
+            {showAddPR && (
+              <PRModal
+                form={prForm}
+                setForm={setPrForm}
+                status={prStatus}
+                saving={prSaving}
+                onClose={()=>{ setShowAddPR(false); setPrStatus(null) }}
+                onSave={handleLogPR}
+              />
+            )}
           </div>
         )}
 
@@ -433,4 +465,80 @@ function StatCard({ label, value }) {
 
 function Empty({ children }) {
   return <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>{children}</div>
+}
+
+function PRModal({ form, setForm, status, saving, onClose, onSave }) {
+  const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'11px 12px', fontSize:15, width:'100%' }
+  const options = EXERCISES[form.muscleGroup] || []
+  const name = form.exercise === '__custom__' ? form.customExercise.trim() : form.exercise.trim()
+  const canSave = !!name && !!form.weight && !!form.reps && !saving
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
+      <div style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', padding:'24px 20px 40px', width:'100%', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <span className="label">LOG PR</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
+        </div>
+        <div style={{ fontSize:12, color:'var(--text-dim)', marginBottom:14, lineHeight:1.5 }}>
+          Record a lift you hit outside a tracked session. Only saved if it beats your current PR for that exercise.
+        </div>
+
+        <div className="label" style={{ marginBottom:8 }}>MUSCLE GROUP</div>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+          {MUSCLE_GROUPS.map(g => (
+            <button
+              key={g}
+              onClick={()=>setForm(f=>({ ...f, muscleGroup: g, exercise: '', customExercise: '' }))}
+              style={{ padding:'6px 12px', borderRadius:20, border:'none', background:form.muscleGroup===g?'var(--accent)':'var(--bg3)', color:form.muscleGroup===g?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600 }}
+            >{g}</button>
+          ))}
+        </div>
+
+        <div className="label" style={{ marginBottom:8 }}>EXERCISE</div>
+        <select
+          value={form.exercise}
+          onChange={e=>setForm(f=>({ ...f, exercise: e.target.value }))}
+          style={{ ...INP, marginBottom: form.exercise === '__custom__' ? 10 : 14 }}
+        >
+          <option value="">— select —</option>
+          {options.map(ex => <option key={ex} value={ex}>{ex}</option>)}
+          <option value="__custom__">+ Custom exercise…</option>
+        </select>
+        {form.exercise === '__custom__' && (
+          <input
+            autoFocus
+            style={{ ...INP, marginBottom:14 }}
+            placeholder="Exercise name"
+            value={form.customExercise}
+            onChange={e=>setForm(f=>({ ...f, customExercise: e.target.value }))}
+          />
+        )}
+
+        <div style={{ display:'flex', gap:10, marginBottom:14 }}>
+          <div style={{ flex:1 }}>
+            <div className="label" style={{ marginBottom:8 }}>WEIGHT (lbs)</div>
+            <input style={INP} type="number" inputMode="decimal" value={form.weight} onChange={e=>setForm(f=>({ ...f, weight: e.target.value }))} />
+          </div>
+          <div style={{ flex:1 }}>
+            <div className="label" style={{ marginBottom:8 }}>REPS</div>
+            <input style={INP} type="number" inputMode="numeric" value={form.reps} onChange={e=>setForm(f=>({ ...f, reps: e.target.value }))} />
+          </div>
+        </div>
+
+        {status === 'same' && (
+          <div style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:12, marginBottom:12, fontSize:12, color:'var(--text-dim)' }}>
+            Not a PR — you already have a better lift on record for this exercise.
+          </div>
+        )}
+
+        <button
+          onClick={onSave}
+          disabled={!canSave}
+          style={{ width:'100%', background:canSave?'var(--accent)':'var(--bg3)', border:'none', borderRadius:'var(--radius-sm)', padding:13, color:canSave?'#fff':'var(--text-muted)', fontWeight:700, fontSize:14 }}
+        >
+          {saving ? 'SAVING...' : 'SAVE PR'}
+        </button>
+      </div>
+    </div>
+  )
 }

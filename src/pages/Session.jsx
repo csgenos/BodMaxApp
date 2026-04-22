@@ -7,13 +7,24 @@ import {
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES } from '../lib/ranks'
 
 const uid = () => Math.random().toString(36).slice(2)
+const ACTIVE_KEY = 'bm_active_session'
+
+const loadActive = () => {
+  try {
+    const raw = localStorage.getItem(ACTIVE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.startTime ? parsed : null
+  } catch { return null }
+}
 
 export default function Session() {
   const { profile } = useAuth()
-  const [view, setView] = useState('list') // list | calendar | active | summary
+  // Restore any in-progress session synchronously before first paint so we
+  // never render the list view and flicker into 'active'.
+  const [active, setActive] = useState(loadActive)
+  const [view, setView] = useState(() => (loadActive() ? 'active' : 'list')) // list | calendar | active | summary
   const [sessions, setSessions] = useState([])
-  const [active, setActive] = useState(null)
-  const [elapsed, setElapsed] = useState(0)
   const [showPicker, setShowPicker] = useState(false)
   const [showCardio, setShowCardio] = useState(false)
   const [pickerGroup, setPickerGroup] = useState(MUSCLE_GROUPS[0])
@@ -22,11 +33,13 @@ export default function Session() {
   const [calMonth, setCalMonth] = useState(new Date())
   const [suggestions, setSuggestions] = useState({}) // exerciseName -> sets
   const timer = useRef(null)
+  const [, setTick] = useState(0) // triggers re-render each second so the timer ticks
   const [saving, setSaving] = useState(false)
   const [templates, setTemplates] = useState([])
   const [showTemplates, setShowTemplates] = useState(false)
   const [showSaveTpl, setShowSaveTpl] = useState(false)
   const [tplName, setTplName] = useState('')
+  const [showDiscard, setShowDiscard] = useState(false)
 
   useEffect(() => { if (profile) load() }, [profile?.id])
   const load = async () => {
@@ -34,13 +47,34 @@ export default function Session() {
     setSessions(s); setTemplates(t)
   }
 
+  // Persist / clear the in-progress session on every change. Elapsed is
+  // derived from startTime, so a full page refresh or tab close loses
+  // nothing — the stopwatch keeps counting real wall-clock time.
   useEffect(() => {
-    if (active) { timer.current = setInterval(() => setElapsed(e => e+1), 1000) }
-    else { clearInterval(timer.current); setElapsed(0) }
+    try {
+      if (active) localStorage.setItem(ACTIVE_KEY, JSON.stringify(active))
+      else localStorage.removeItem(ACTIVE_KEY)
+    } catch { /* storage quota / private mode — don't crash */ }
+  }, [active])
+
+  useEffect(() => {
+    if (!active) return
+    timer.current = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(timer.current)
   }, [!!active])
 
-  const startSession = () => { setActive({ id: uid(), date: new Date().toISOString(), exercises:[], cardio:[] }); setView('active') }
+  const elapsed = active?.startTime ? Math.max(0, Math.floor((Date.now() - active.startTime) / 1000)) : 0
+
+  const startSession = () => {
+    setActive({ id: uid(), date: new Date().toISOString(), startTime: Date.now(), exercises:[], cardio:[] })
+    setView('active')
+  }
+
+  const discardSession = () => {
+    setActive(null)
+    setShowDiscard(false)
+    setView('list')
+  }
 
   const startFromTemplate = async (tpl) => {
     const exs = (tpl.exercises || []).map(e => ({
@@ -49,7 +83,7 @@ export default function Session() {
       muscleGroup: e.muscleGroup || e.muscle_group,
       sets: [{ id: uid(), weight:'', reps:'' }],
     }))
-    setActive({ id: uid(), date: new Date().toISOString(), exercises: exs, cardio: [] })
+    setActive({ id: uid(), date: new Date().toISOString(), startTime: Date.now(), exercises: exs, cardio: [] })
     setView('active')
     setShowTemplates(false)
     // prefetch suggestions for each exercise
@@ -69,7 +103,7 @@ export default function Session() {
       muscleGroup: e.muscle_group || e.muscleGroup,
       sets: [{ id: uid(), weight:'', reps:'' }],
     }))
-    setActive({ id: uid(), date: new Date().toISOString(), exercises: exs, cardio: [] })
+    setActive({ id: uid(), date: new Date().toISOString(), startTime: Date.now(), exercises: exs, cardio: [] })
     setView('active')
     setShowTemplates(false)
     for (const ex of exs) {
@@ -212,10 +246,22 @@ export default function Session() {
         {active.exercises.length > 0 && (
           <button onClick={()=>setShowSaveTpl(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>SAVE AS TEMPLATE</button>
         )}
+        <button onClick={()=>setShowDiscard(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>DISCARD SESSION</button>
       </div>
 
       {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} />}
       {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} />}
+      {showDiscard && (
+        <Modal onClose={()=>setShowDiscard(false)} title="DISCARD SESSION?">
+          <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:16, lineHeight:1.5 }}>
+            You&apos;ll lose {active.exercises.length} exercise{active.exercises.length===1?'':'s'} and {fmtTime(elapsed)} of tracked time. This can&apos;t be undone.
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={()=>setShowDiscard(false)} style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:12, color:'var(--text-dim)', fontWeight:600 }}>Keep going</button>
+            <button onClick={discardSession} style={{ flex:2, background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:12, color:'#fff', fontWeight:700, fontSize:14 }}>DISCARD</button>
+          </div>
+        </Modal>
+      )}
       {showSaveTpl && (
         <Modal onClose={()=>setShowSaveTpl(false)} title="SAVE AS TEMPLATE">
           <input

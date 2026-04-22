@@ -1,0 +1,71 @@
+name: Deploy Supabase migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+  workflow_dispatch:
+
+concurrency:
+  # Don't let two deploys race on the same project.
+  group: supabase-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lint:
+    name: Lint migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # `supabase db lint` parses every file in supabase/migrations and fails
+      # on warnings or errors, so broken SQL stops the pipeline before it can
+      # touch production.
+      - name: Lint migrations
+        run: supabase db lint --level warning
+
+      # Boot a local Postgres and replay every migration end-to-end. If any
+      # migration fails to apply on a clean database, this fails — catches
+      # missing dependencies, syntax errors, and ordering bugs.
+      - name: Dry-run migrations on ephemeral database
+        run: |
+          supabase db start
+          supabase migration up --local
+          supabase db stop --no-backup
+
+  deploy:
+    name: Push to production
+    needs: lint
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+
+      - name: Push migrations
+        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
