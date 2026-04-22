@@ -10,7 +10,7 @@ const GOALS = ['bulk', 'cut', 'maintain']
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
 
 export default function Profile() {
-  const { profile, setProfile, signOut, theme, toggleTheme } = useAuth()
+  const { profile, setProfile, signOut, theme, toggleTheme, uiScale, setUiScale } = useAuth()
   const [sessions, setSessions] = useState([])
   const [prs, setPRs] = useState([])
   const [volumes, setVolumes] = useState({})
@@ -241,7 +241,17 @@ export default function Profile() {
                     <span style={{ fontSize: 14, fontWeight: 600 }}>{v}</span>
                   </div>
                 ))}
-                <button onClick={() => setEditing(true)} style={{ marginTop: 8, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
+                <div className="card" style={{ padding: '12px 14px', marginTop: 8 }}>
+                  <div className="label" style={{ marginBottom: 10 }}>TEXT SIZE</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[{ v: 1, label: 'Default' }, { v: 1.15, label: 'Large' }, { v: 1.3, label: 'X-Large' }].map(({ v, label }) => (
+                      <button key={v} onClick={() => setUiScale(v)} style={{ flex: 1, padding: '10px 4px', borderRadius: 'var(--radius-sm)', border: `1px solid ${uiScale === v ? 'var(--accent)' : 'var(--border)'}`, background: uiScale === v ? 'var(--accent-low)' : 'var(--bg3)', color: uiScale === v ? 'var(--accent)' : 'var(--text-dim)', fontWeight: 700, fontSize: 11, letterSpacing: '0.5px' }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
                 <button onClick={toggleTheme} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   {theme === 'dark' ? '☀ LIGHT MODE' : '☾ DARK MODE'}
                 </button>

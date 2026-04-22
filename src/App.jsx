@@ -23,7 +23,7 @@ function PageLoader() {
 }
 
 function Inner() {
-  const { user, profile, isRecovering } = useAuth()
+  const { user, profile, isRecovering, uiScale } = useAuth()
 
   if (user === undefined) return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -40,6 +40,7 @@ function Inner() {
     <BrowserRouter>
       <div style={{ maxWidth: 480, margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ zoom: uiScale }}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
@@ -51,6 +52,7 @@ function Inner() {
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </Suspense>
+          </div>
         </div>
         <BottomNav />
       </div>

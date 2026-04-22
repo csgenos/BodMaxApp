@@ -9,6 +9,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [isRecovering, setIsRecovering] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
+  const [uiScale, setUiScaleState] = useState(() => parseFloat(localStorage.getItem('uiScale') || '1'))
   const loadingRef = useRef(false)
 
   const loadProfile = async (userId) => {
@@ -69,9 +70,10 @@ export function AuthProvider({ children }) {
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
   const clearRecovery = () => setIsRecovering(false)
+  const setUiScale = (v) => { setUiScaleState(v); localStorage.setItem('uiScale', v) }
 
   return (
-    <AuthContext.Provider value={{ user, profile, setProfile, refreshProfile: () => user && loadProfile(user.id), signOut: () => supabase.auth.signOut(), isRecovering, clearRecovery, theme, toggleTheme }}>
+    <AuthContext.Provider value={{ user, profile, setProfile, refreshProfile: () => user && loadProfile(user.id), signOut: () => supabase.auth.signOut(), isRecovering, clearRecovery, theme, toggleTheme, uiScale, setUiScale }}>
       {children}
     </AuthContext.Provider>
   )

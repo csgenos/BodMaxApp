@@ -17,9 +17,9 @@ export default function BottomNav() {
       {TABS.map(t => {
         const active = loc.pathname === t.path
         return (
-          <button key={t.path} onClick={() => nav(t.path)} style={{ flex:1, background:'none', border:'none', padding:'10px 0 8px', display:'flex', flexDirection:'column', alignItems:'center', gap:'3px', color:active?'var(--accent)':'var(--text-muted)', transition:'color 0.15s' }}>
-            <span style={{ fontSize:'16px', lineHeight:1 }}>{t.icon}</span>
-            <span style={{ fontSize:'7px', letterSpacing:'1px', fontFamily:'var(--mono)' }}>{t.label}</span>
+          <button key={t.path} onClick={() => nav(t.path)} style={{ flex:1, background:'none', border:'none', padding:'14px 0 12px', display:'flex', flexDirection:'column', alignItems:'center', gap:'4px', color:active?'var(--accent)':'var(--text-muted)', transition:'color 0.15s', minHeight:56 }}>
+            <span style={{ fontSize:'20px', lineHeight:1 }}>{t.icon}</span>
+            <span style={{ fontSize:'9px', letterSpacing:'1px', fontFamily:'var(--mono)' }}>{t.label}</span>
           </button>
         )
       })}
