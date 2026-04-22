@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { searchUsers, sendFriendRequest, getFriendsFeedAndFriends, getFriendPRs, getFriendSessions, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus, getSessionComments, addSessionComment, getLeaderboard } from '../lib/db'
+import { searchUsers, sendFriendRequest, getFriendsFeedAndFriends, getFriendPRs, getFriendSessions, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus, getLeaderboard, getLikesForSessions, toggleLike } from '../lib/db'
 import { MUSCLE_GROUPS, calcSessionVolume, calcVolumes, getRank, getTotalVolume } from '../lib/ranks'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
@@ -18,9 +18,7 @@ export default function Social() {
   const [friendPRs, setFriendPRs] = useState([])
   const [friendSessions, setFriendSessions] = useState([])
   const [friendVolumes, setFriendVolumes] = useState({})
-  const [openComments, setOpenComments] = useState(new Set())
-  const [sessionComments, setSessionComments] = useState({})
-  const [commentInputs, setCommentInputs] = useState({})
+  const [likes, setLikes] = useState({})
   const [leaderboard, setLeaderboard] = useState([])
   const [competeMode, setCompeteMode] = useState('weekly')
   const [loading, setLoading] = useState(true)
@@ -49,6 +47,16 @@ export default function Social() {
       ])
       if (!mounted.current) return
       setFeed(f); setFriends(fr); setRequests(req)
+      if (f.length) {
+        const likesData = await getLikesForSessions(f.map(s => s.id))
+        if (!mounted.current) return
+        const map = {}
+        for (const l of likesData) {
+          if (!map[l.session_id]) map[l.session_id] = new Set()
+          map[l.session_id].add(l.user_id)
+        }
+        setLikes(map)
+      }
     } catch (e) { if (mounted.current) setError(e.message) }
     if (mounted.current) setLoading(false)
   }
@@ -104,27 +112,24 @@ export default function Social() {
     }
   }
 
-  const toggleComments = async (sessionId) => {
-    const isOpening = !openComments.has(sessionId)
-    setOpenComments(prev => {
-      const next = new Set(prev)
-      isOpening ? next.add(sessionId) : next.delete(sessionId)
-      return next
+  const handleLike = async (sessionId) => {
+    const alreadyLiked = likes[sessionId]?.has(profile.id)
+    // Optimistic update
+    setLikes(prev => {
+      const next = new Set(prev[sessionId] || [])
+      alreadyLiked ? next.delete(profile.id) : next.add(profile.id)
+      return { ...prev, [sessionId]: next }
     })
-    if (isOpening) {
-      const comments = await getSessionComments(sessionId)
-      setSessionComments(prev => ({ ...prev, [sessionId]: comments }))
-    }
-  }
-
-  const submitComment = async (sessionId) => {
-    const text = (commentInputs[sessionId] || '').trim()
-    if (!text) return
     try {
-      const comment = await addSessionComment(sessionId, profile.id, text)
-      setSessionComments(prev => ({ ...prev, [sessionId]: [...(prev[sessionId] || []), comment] }))
-      setCommentInputs(prev => ({ ...prev, [sessionId]: '' }))
-    } catch { if (mounted.current) setError('Failed to post comment') }
+      await toggleLike(sessionId, profile.id)
+    } catch {
+      // Rollback on failure
+      setLikes(prev => {
+        const next = new Set(prev[sessionId] || [])
+        alreadyLiked ? next.add(profile.id) : next.delete(profile.id)
+        return { ...prev, [sessionId]: next }
+      })
+    }
   }
 
   if (selectedFriend) {
@@ -220,8 +225,8 @@ export default function Social() {
             const vol = calcSessionVolume(s)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
             const user = s.profiles
-            const isOpen = openComments.has(s.id)
-            const comments = sessionComments[s.id] || []
+            const likedByMe = likes[s.id]?.has(profile.id) || false
+            const likeCount = likes[s.id]?.size || 0
             return (
               <div key={s.id} className="card" style={{ padding: 16, marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -232,33 +237,21 @@ export default function Social() {
                   </div>
                   <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
                 </div>
-                <div style={{ fontWeight:600, fontSize:14, marginBottom:3 }}>{groups.join(', ')||'Workout'}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', marginBottom:10 }}>
-                  {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration?` · ${Math.floor(s.duration/60)}m`:''}
+                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{groups.join(', ') || 'Workout'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 12 }}>
+                  {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
                 </div>
-                <button onClick={() => toggleComments(s.id)} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:12, padding:0, cursor:'pointer' }}>
-                  💬 {comments.length > 0 ? `${comments.length} ` : ''}Comment{comments.length !== 1 ? 's' : ''}
+                <button
+                  onClick={() => handleLike(s.id)}
+                  style={{ background: 'none', border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: 6, color: likedByMe ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1, display: 'inline-block', transform: likedByMe ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
+                    {likedByMe ? '♥' : '♡'}
+                  </span>
+                  <span style={{ fontSize: 12, fontFamily: 'var(--mono)', fontWeight: 600, transition: 'color 0.15s' }}>
+                    {likeCount > 0 ? likeCount : 'Like'}
+                  </span>
                 </button>
-                {isOpen && (
-                  <div style={{ marginTop:10, paddingTop:10, borderTop:'1px solid var(--border)' }}>
-                    {comments.map(c => (
-                      <div key={c.id} style={{ marginBottom:8 }}>
-                        <span style={{ fontWeight:700, fontSize:12 }}>{c.profiles?.name} </span>
-                        <span style={{ fontSize:13, color:'var(--text)' }}>{c.text}</span>
-                      </div>
-                    ))}
-                    <div style={{ display:'flex', gap:8, marginTop:8 }}>
-                      <input
-                        style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'8px 10px', fontSize:13 }}
-                        placeholder="Add a comment..."
-                        value={commentInputs[s.id]||''}
-                        onChange={e => setCommentInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
-                        onKeyDown={e => e.key === 'Enter' && submitComment(s.id)}
-                      />
-                      <button onClick={() => submitComment(s.id)} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px 14px', color:'#fff', fontWeight:700, fontSize:12 }}>Post</button>
-                    </div>
-                  </div>
-                )}
               </div>
             )
           })
