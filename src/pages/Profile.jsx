@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { getSessions, getPRs, updateProfile } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUSCLE_GROUPS } from '../lib/ranks'
 import { calcStreak } from '../lib/streaks'
@@ -11,6 +12,7 @@ const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borde
 
 export default function Profile() {
   const { profile, setProfile, signOut } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [sessions, setSessions] = useState([])
   const [prs, setPRs] = useState([])
   const [volumes, setVolumes] = useState({})
@@ -241,6 +243,12 @@ export default function Profile() {
                     <span style={{ fontSize: 14, fontWeight: 600 }}>{v}</span>
                   </div>
                 ))}
+                <div className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="label">APPEARANCE</span>
+                  <button onClick={toggleTheme} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: 'var(--text)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {theme === 'dark' ? '☀ LIGHT' : '☾ DARK'}
+                  </button>
+                </div>
                 <button onClick={() => setEditing(true)} style={{ marginTop: 8, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (

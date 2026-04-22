@@ -83,11 +83,11 @@ export default function Social() {
 
   const handleAccept = async (id) => {
     try { await acceptFriendRequest(profile.id, id); load() }
-    catch (e) { alert(e.message) }
+    catch (e) { if (mounted.current) setError(e.message) }
   }
   const handleDecline = async (id) => {
     try { await declineFriendRequest(profile.id, id); load() }
-    catch (e) { alert(e.message) }
+    catch (e) { if (mounted.current) setError(e.message) }
   }
 
   const viewFriendProfile = async (friend) => {
@@ -123,7 +123,7 @@ export default function Social() {
       const comment = await addSessionComment(sessionId, profile.id, text)
       setSessionComments(prev => ({ ...prev, [sessionId]: [...(prev[sessionId] || []), comment] }))
       setCommentInputs(prev => ({ ...prev, [sessionId]: '' }))
-    } catch { alert('Failed to post comment') }
+    } catch { if (mounted.current) setError('Failed to post comment') }
   }
 
   if (selectedFriend) {
