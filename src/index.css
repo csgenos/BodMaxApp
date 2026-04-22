@@ -18,6 +18,18 @@
   --radius-sm: 8px;
 }
 
+[data-theme="light"] {
+  --bg: #f2f2f2;
+  --bg2: #ffffff;
+  --bg3: #e8e8e8;
+  --bg4: #dedede;
+  --border: #d4d4d4;
+  --border2: #c8c8c8;
+  --text: #111111;
+  --text-dim: #555555;
+  --text-muted: #aaaaaa;
+}
+
 html, body { background: var(--bg); color: var(--text); font-family: var(--font); height: 100%; overflow: hidden; -webkit-font-smoothing: antialiased; }
 #root { height: 100vh; overflow: hidden; }
 input, button, select, textarea { font-family: var(--font); }

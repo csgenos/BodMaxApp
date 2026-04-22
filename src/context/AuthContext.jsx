@@ -7,6 +7,8 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined)
   const [profile, setProfile] = useState(null)
+  const [isRecovering, setIsRecovering] = useState(false)
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const loadingRef = useRef(false)
 
   const loadProfile = async (userId) => {
@@ -37,11 +39,16 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       const u = session?.user ?? null
       setUser(u)
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovering(true)
+        return
+      }
       if (u) {
         loadProfile(u.id)
         if (event === 'SIGNED_IN') updateLastActive(u.id)
       } else {
         setProfile(null)
+        setIsRecovering(false)
       }
     })
     return () => { mounted = false; subscription.unsubscribe() }
@@ -55,8 +62,16 @@ export function AuthProvider({ children }) {
     document.documentElement.style.setProperty('--accent-low', `rgba(${r},${g},${b},0.12)`)
   }, [profile?.accent_color])
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('theme', theme)
+  }, [theme])
+
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+  const clearRecovery = () => setIsRecovering(false)
+
   return (
-    <AuthContext.Provider value={{ user, profile, setProfile, refreshProfile: () => user && loadProfile(user.id), signOut: () => supabase.auth.signOut() }}>
+    <AuthContext.Provider value={{ user, profile, setProfile, refreshProfile: () => user && loadProfile(user.id), signOut: () => supabase.auth.signOut(), isRecovering, clearRecovery, theme, toggleTheme }}>
       {children}
     </AuthContext.Provider>
   )

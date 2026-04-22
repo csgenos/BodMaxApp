@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import BottomNav from './components/BottomNav'
 import Auth from './pages/Auth'
 import Setup from './pages/Setup'
+import UpdatePassword from './pages/UpdatePassword'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Session = lazy(() => import('./pages/Session'))
@@ -22,7 +23,7 @@ function PageLoader() {
 }
 
 function Inner() {
-  const { user, profile } = useAuth()
+  const { user, profile, isRecovering } = useAuth()
 
   if (user === undefined) return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -31,6 +32,7 @@ function Inner() {
     </div>
   )
 
+  if (isRecovering) return <UpdatePassword />
   if (!user) return <Auth />
   if (!profile) return <Setup />
 

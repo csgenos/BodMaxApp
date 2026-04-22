@@ -10,7 +10,7 @@ const GOALS = ['bulk', 'cut', 'maintain']
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
 
 export default function Profile() {
-  const { profile, setProfile, signOut } = useAuth()
+  const { profile, setProfile, signOut, theme, toggleTheme } = useAuth()
   const [sessions, setSessions] = useState([])
   const [prs, setPRs] = useState([])
   const [volumes, setVolumes] = useState({})
@@ -242,6 +242,9 @@ export default function Profile() {
                   </div>
                 ))}
                 <button onClick={() => setEditing(true)} style={{ marginTop: 8, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
+                <button onClick={toggleTheme} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  {theme === 'dark' ? '☀ LIGHT MODE' : '☾ DARK MODE'}
+                </button>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (
                   <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>
