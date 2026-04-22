@@ -52,7 +52,7 @@ export default function Dashboard() {
   if (loading) return <Loader />
 
   return (
-    <div style={{ paddingBottom: 24 }}>
+    <div className="page" style={{ paddingBottom: 24 }}>
       <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div className="label" style={{ marginBottom: 4 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}</div>
         <h1 style={{ fontSize: 26, fontWeight: 700 }}>{greeting}, <span style={{ color: 'var(--accent)' }}>{profile?.name?.split(' ')[0]}</span></h1>

@@ -5,6 +5,7 @@ import {
   getTemplates, saveTemplate, deleteTemplate,
 } from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
+import { getNotifPermission, requestNotifPermission, showTimerNotification } from '../lib/notifications'
 
 const uid = () => Math.random().toString(36).slice(2)
 const ACTIVE_KEY = 'bm_active_session'
@@ -47,6 +48,11 @@ export default function Session() {
   const [showSaveTpl, setShowSaveTpl] = useState(false)
   const [tplName, setTplName] = useState('')
   const [showDiscard, setShowDiscard] = useState(false)
+  const [error, setError] = useState(null)
+  const restIntervalRef = useRef(null)
+  const [restSeconds, setRestSeconds] = useState(0)
+  const [restActive, setRestActive] = useState(false)
+  const [restDone, setRestDone] = useState(false)
 
   useEffect(() => { if (profile) load() }, [profile?.id])
   const load = async () => {
@@ -101,7 +107,7 @@ export default function Session() {
 
   const handleDelete = async (sessionId) => {
     try { await deleteSession(sessionId, profile.id); await load() }
-    catch(e) { alert('Delete failed: ' + e.message) }
+    catch(e) { setError('Delete failed: ' + e.message) }
     setConfirmDelete(null)
   }
 
@@ -158,7 +164,18 @@ export default function Session() {
       await saveTemplate(profile.id, tplName.trim(), active.exercises)
       setTemplates(await getTemplates(profile.id))
       setTplName(''); setShowSaveTpl(false)
-    } catch (e) { alert(e.message) }
+    } catch (e) { setError(e.message) }
+  }
+
+  const handleSaveSummaryTemplate = async () => {
+    if (!templateName.trim() || !summary?.exercises?.length) return
+    setTemplateSaving(true)
+    try {
+      await saveTemplate(profile.id, templateName.trim(), summary.exercises)
+      setTemplates(await getTemplates(profile.id))
+      setTemplateName(''); setShowTemplateSave(false)
+    } catch (e) { setError(e.message) }
+    setTemplateSaving(false)
   }
 
   const handleDeleteTemplate = async (id) => {
@@ -236,7 +253,7 @@ export default function Session() {
         await load()
         setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
       }
-    } catch(e) { alert('Save failed: ' + e.message) }
+    } catch(e) { setError('Save failed: ' + e.message) }
     setSaving(false)
   }
 
@@ -247,7 +264,7 @@ export default function Session() {
 
   // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
-    <div style={{ padding:'60px 20px', textAlign:'center' }}>
+    <div className="page" style={{ padding:'60px 20px', textAlign:'center' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:28 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
@@ -271,9 +288,9 @@ export default function Session() {
               placeholder="e.g. Push Day A"
               value={templateName}
               onChange={e => setTemplateName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()}
+              onKeyDown={e => e.key === 'Enter' && handleSaveSummaryTemplate()}
             />
-            <button onClick={handleSaveTemplate} disabled={templateSaving || !templateName.trim()} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '11px 16px', color: '#fff', fontWeight: 700, fontSize: 13 }}>
+            <button onClick={handleSaveSummaryTemplate} disabled={templateSaving || !templateName.trim()} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '11px 16px', color: '#fff', fontWeight: 700, fontSize: 13 }}>
               {templateSaving ? '…' : 'SAVE'}
             </button>
             <button onClick={() => setShowTemplateSave(false)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '11px 12px', color: 'var(--text-dim)' }}>×</button>
@@ -290,7 +307,7 @@ export default function Session() {
 
   // ── ACTIVE SESSION ────────────────────────────────────────
   if (view === 'active' && active) return (
-    <div style={{ paddingBottom:24 }}>
+    <div className="page" style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
           <div className="label">{isEditing ? 'EDIT SESSION' : 'SESSION IN PROGRESS'}</div>
@@ -342,6 +359,31 @@ export default function Session() {
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{c.duration} min{c.distance ? ` · ${c.distance} mi` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}</div>
           </div>
         ))}
+
+        {/* Rest Timer */}
+        <div className="card" style={{ padding: 14 }}>
+          <div className="label" style={{ marginBottom: 10 }}>REST TIMER</div>
+          {restActive ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontSize: 30, fontWeight: 800, fontFamily: 'var(--mono)', color: restSeconds <= 10 ? 'var(--accent)' : 'var(--text)', flex: 1 }}>
+                {Math.floor(restSeconds / 60)}:{String(restSeconds % 60).padStart(2, '0')}
+              </div>
+              <button onClick={cancelRest} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 16px', color: 'var(--text-dim)', fontWeight: 700, fontSize: 12 }}>STOP</button>
+            </div>
+          ) : restDone ? (
+            <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 14 }}>Rest complete — get to your next set!</div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[60, 90, 120, 180].map(s => (
+                <button key={s} onClick={() => startRest(s)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '9px 0', color: 'var(--text-dim)', fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                  {`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <div style={{ padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
         <button onClick={()=>setShowPicker(true)} style={{ background:'transparent', border:'1px dashed var(--border)', borderRadius:'var(--radius)', padding:14, color:'var(--text-dim)', fontSize:14, fontWeight:600 }}>+ ADD EXERCISE</button>
         <button onClick={()=>setShowCardio(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:12, color:'var(--text-muted)', fontSize:12 }}>+ ADD CARDIO</button>
@@ -395,7 +437,7 @@ export default function Session() {
     const monthStr = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
     return (
-      <div style={{ padding: '52px 20px 24px' }}>
+      <div className="page" style={{ padding: '52px 20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 24, fontWeight: 800 }}>Sessions</h2>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -437,7 +479,8 @@ export default function Session() {
 
   // ── LIST VIEW ─────────────────────────────────────────────
   return (
-    <div style={{ padding: '52px 20px 24px' }}>
+    <div className="page" style={{ padding: '52px 20px 24px' }}>
+      {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <h2 style={{ fontSize: 26, fontWeight: 800 }}>Sessions</h2>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -625,8 +668,8 @@ function CardioModal({ onAdd, onClose }) {
 
 function Modal({ children, onClose, title }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div className="modal-sheet" style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <span className="label">{title}</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>

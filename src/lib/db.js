@@ -306,6 +306,29 @@ export const getSocialNotifCounts = async (userId, lastFeedSeen) => {
   return { requests: reqCount || 0, feed: feedCount || 0 }
 }
 
+// ── LIKES ─────────────────────────────────────────────────
+export const getLikesForSessions = async (sessionIds) => {
+  if (!sessionIds?.length) return []
+  const { data } = await supabase.from('session_likes')
+    .select('session_id, user_id')
+    .in('session_id', sessionIds)
+  return data || []
+}
+
+export const toggleLike = async (sessionId, userId) => {
+  const { data: existing } = await supabase.from('session_likes')
+    .select('session_id').eq('session_id', sessionId).eq('user_id', userId).maybeSingle()
+  if (existing) {
+    const { error } = await supabase.from('session_likes').delete()
+      .eq('session_id', sessionId).eq('user_id', userId)
+    if (error) throw error
+    return false
+  }
+  const { error } = await supabase.from('session_likes').insert({ session_id: sessionId, user_id: userId })
+  if (error) throw error
+  return true
+}
+
 export const getLeaderboard = async (userId, currentProfile) => {
   const friends = await getFriends(userId)
   const allIds = [...friends.map(f => f.id), userId]

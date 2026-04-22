@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import BottomNav from './components/BottomNav'
 import Auth from './pages/Auth'
 import Setup from './pages/Setup'
@@ -61,5 +62,5 @@ function Inner() {
 }
 
 export default function App() {
-  return <AuthProvider><Inner /></AuthProvider>
+  return <ThemeProvider><AuthProvider><Inner /></AuthProvider></ThemeProvider>
 }

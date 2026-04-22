@@ -62,7 +62,7 @@ export default function Profile() {
   }
 
   return (
-    <div style={{ paddingBottom: 40 }}>
+    <div className="page" style={{ paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
@@ -251,10 +251,13 @@ export default function Profile() {
                     ))}
                   </div>
                 </div>
+                <div className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="label">APPEARANCE</span>
+                  <button onClick={toggleTheme} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: 'var(--text)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {theme === 'dark' ? '☀ LIGHT' : '☾ DARK'}
+                  </button>
+                </div>
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
-                <button onClick={toggleTheme} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  {theme === 'dark' ? '☀ LIGHT MODE' : '☾ DARK MODE'}
-                </button>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (
                   <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>

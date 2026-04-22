@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import {
   getWeightLog, addWeight, getPRs, getSessions,
   getBodyMeasurements, addBodyMeasurement, deleteBodyMeasurement,
@@ -8,7 +9,6 @@ import {
 import { calcVolumes, getRank, MUSCLE_GROUPS, EXERCISES, calcSessionVolume } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
-const TT = { contentStyle: { background: '#141414', border: '1px solid #222', borderRadius: 8, color: '#f0f0f0', fontSize: 12 }, cursor: { stroke: '#333' } }
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, outline: 'none' }
 
 const MEASURE_FIELDS = [
@@ -25,6 +25,7 @@ const MEASURE_FIELDS = [
 
 export default function Progress() {
   const { profile } = useAuth()
+  const { theme } = useTheme()
   const [tab, setTab] = useState('history')
   const [weightLog, setWeightLog] = useState([])
   const [prs, setPRs] = useState([])
@@ -66,16 +67,6 @@ export default function Progress() {
     }).catch(e => { if (mounted.current) setError(e.message) })
   }, [profile?.id])
 
-  useEffect(() => {
-    if (tab === 'photos' && profile) loadPhotos()
-  }, [tab, profile?.id])
-
-  const loadPhotos = async () => {
-    setPhotosLoading(true)
-    setPhotos(await getProgressPhotos(profile.id))
-    setPhotosLoading(false)
-  }
-
   const handleAddWeight = async () => {
     if (!newWeight) return
     try {
@@ -97,12 +88,12 @@ export default function Progress() {
       await addBodyMeasurement(profile.id, { date: new Date().toISOString().split('T')[0], ...cleaned })
       setMeasurements(await getBodyMeasurements(profile.id))
       setMForm({}); setShowAddM(false)
-    } catch(e) { alert(e.message) }
+    } catch(e) { if (mounted.current) setError(e.message) }
   }
 
   const handleDeleteMeasurement = async (id) => {
     try { await deleteBodyMeasurement(profile.id, id); setMeasurements(await getBodyMeasurements(profile.id)) }
-    catch(e) { alert(e.message) }
+    catch(e) { if (mounted.current) setError(e.message) }
   }
 
   const handleLogPR = async () => {
@@ -117,41 +108,15 @@ export default function Progress() {
         setPrForm({ muscleGroup: MUSCLE_GROUPS[0], exercise: '', customExercise: '', weight: '', reps: '' })
         setShowAddPR(false)
       }
-    } catch (e) { alert(e.message) }
+    } catch (e) { if (mounted.current) setError(e.message) }
     setPrSaving(false)
   }
 
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    pendingFileRef.current = file
-    setShowPhotoForm(true)
-    e.target.value = ''
-  }
-
-  const handleUploadPhoto = async () => {
-    const file = pendingFileRef.current
-    if (!file) return
-    setPhotoUploading(true)
-    try {
-      await addProgressPhoto(profile.id, file, photoWeight ? +photoWeight : null, photoNotes || null)
-      await loadPhotos()
-      setShowPhotoForm(false)
-      setPhotoWeight('')
-      setPhotoNotes('')
-      pendingFileRef.current = null
-    } catch (e) {
-      alert('Upload failed: ' + e.message)
-    }
-    setPhotoUploading(false)
-  }
-
-  const handleDeletePhoto = async (photo) => {
-    if (!confirm('Delete this photo?')) return
-    await deleteProgressPhoto(photo.id, photo.photo_url)
-    setSelectedPhoto(null)
-    await loadPhotos()
-  }
+  const chartTheme = useMemo(() => theme === 'light'
+    ? { grid: '#e0e0e0', tick: '#888', cursor: '#ccc', tt: { background: '#fff', border: '1px solid #ddd', borderRadius: 8, color: '#111', fontSize: 12 } }
+    : { grid: '#1a1a1a', tick: '#444', cursor: '#333', tt: { background: '#141414', border: '1px solid #222', borderRadius: 8, color: '#f0f0f0', fontSize: 12 } }
+  , [theme])
+  const TT = { contentStyle: chartTheme.tt, cursor: { stroke: chartTheme.cursor } }
 
   const weightChartData = weightLog.slice(-histRange).map(e => ({
     date: new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -214,7 +179,7 @@ export default function Progress() {
     [volumes])
 
   return (
-    <div style={{ paddingBottom:24 }}>
+    <div className="page" style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 0', borderBottom:'1px solid var(--border)' }}>
         <h2 style={{ fontSize:26, fontWeight:800, marginBottom:16 }}>Progress</h2>
         <div style={{ display:'flex', overflowX:'auto' }}>
@@ -238,9 +203,9 @@ export default function Progress() {
               {volumeByWeek.length > 1 ? (
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={volumeByWeek}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                    <XAxis dataKey="week" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                    <XAxis dataKey="week" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
                     <Tooltip {...TT} formatter={v => [`${v}k lbs`, 'Volume']} />
                     <Bar dataKey="vol" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -251,9 +216,9 @@ export default function Progress() {
               {freqData.length > 1 ? (
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={freqData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                    <XAxis dataKey="week" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                    <XAxis dataKey="week" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip {...TT} formatter={v => [`${v} days`, 'Sessions']} />
                     <Bar dataKey="days" fill="#4a9eb5" radius={[4, 4, 0, 0]} />
                   </BarChart>
@@ -274,9 +239,9 @@ export default function Progress() {
               <ChartCard title="WEIGHT TREND">
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={weightChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                    <XAxis dataKey="date" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} domain={['dataMin - 3', 'dataMax + 3']} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                    <XAxis dataKey="date" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} domain={['dataMin - 3', 'dataMax + 3']} />
                     <Tooltip {...TT} />
                     <Line type="monotone" dataKey="weight" stroke="var(--accent)" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -314,7 +279,7 @@ export default function Progress() {
                     date: new Date(m.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}),
                     chest: m.chest, waist: m.waist, left_arm: m.left_arm,
                   }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis dataKey="date" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} domain={['dataMin - 1','dataMax + 1']} />
                     <Tooltip {...TT} />
@@ -427,9 +392,9 @@ export default function Progress() {
             <ChartCard title="VOLUME BY MUSCLE (k lbs)">
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={volumeData} barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
                   <Tooltip {...TT} formatter={v => [`${v}k lbs`, 'Volume']} />
                   <Bar dataKey="vol" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -532,8 +497,8 @@ function PRModal({ form, setForm, status, saving, onClose, onSave }) {
   const name = form.exercise === '__custom__' ? form.customExercise.trim() : form.exercise.trim()
   const canSave = !!name && !!form.weight && !!form.reps && !saving
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
-      <div style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', padding:'24px 20px 40px', width:'100%', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
+    <div className="modal-backdrop" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
+      <div className="modal-sheet" style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', padding:'24px 20px 40px', width:'100%', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
           <span className="label">LOG PR</span>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
