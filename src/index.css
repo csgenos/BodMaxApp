@@ -43,3 +43,62 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 .label { font-size: 9px; letter-spacing: 4px; color: var(--text-muted); font-family: var(--mono); text-transform: uppercase; }
 .mono { font-family: var(--mono); }
 .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── TRANSITIONS ─────────────────────────────────────────── */
+body { transition: background-color 0.3s ease, color 0.2s ease; }
+
+.card {
+  transition: background-color 0.25s ease, border-color 0.25s ease,
+              transform 0.18s ease, box-shadow 0.18s ease;
+}
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+}
+[data-theme="light"] .card {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .card:hover {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+}
+
+button {
+  transition: opacity 0.15s ease, transform 0.12s ease,
+              background-color 0.18s ease, color 0.15s ease,
+              border-color 0.15s ease, box-shadow 0.15s ease;
+}
+button:active:not(:disabled) { transform: scale(0.96); }
+
+input, select, textarea {
+  transition: border-color 0.15s ease, background-color 0.2s ease, box-shadow 0.15s ease;
+}
+input:focus, select:focus, textarea:focus {
+  box-shadow: 0 0 0 3px var(--accent-low);
+}
+
+/* ── KEYFRAMES ───────────────────────────────────────────── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page { animation: pageEnter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.modal-backdrop { animation: fadeIn 0.18s ease both; }
+
+@keyframes slideUp {
+  from { transform: translateY(22px); opacity: 0.5; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.modal-sheet { animation: slideUp 0.26s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes accentPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-low); }
+  50%       { box-shadow: 0 0 0 6px transparent; }
+}
+.new-pr-badge { animation: accentPulse 1.4s ease-in-out 3; }

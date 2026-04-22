@@ -84,7 +84,7 @@ export default function Diet() {
   }
 
   return (
-    <div style={{ paddingBottom: 24 }}>
+    <div className="page" style={{ paddingBottom: 24 }}>
       <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Diet</h2>
         <MacroBar label="CALORIES" current={totalCal.toLocaleString()} target={(profile?.target_calories || 0).toLocaleString()} pct={calPct} color="var(--accent)" />

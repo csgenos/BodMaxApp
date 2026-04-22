@@ -264,7 +264,7 @@ export default function Session() {
 
   // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
-    <div style={{ padding:'60px 20px', textAlign:'center' }}>
+    <div className="page" style={{ padding:'60px 20px', textAlign:'center' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:28 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
@@ -307,7 +307,7 @@ export default function Session() {
 
   // ── ACTIVE SESSION ────────────────────────────────────────
   if (view === 'active' && active) return (
-    <div style={{ paddingBottom:24 }}>
+    <div className="page" style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
           <div className="label">{isEditing ? 'EDIT SESSION' : 'SESSION IN PROGRESS'}</div>
@@ -437,7 +437,7 @@ export default function Session() {
     const monthStr = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
     return (
-      <div style={{ padding: '52px 20px 24px' }}>
+      <div className="page" style={{ padding: '52px 20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 24, fontWeight: 800 }}>Sessions</h2>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -479,7 +479,7 @@ export default function Session() {
 
   // ── LIST VIEW ─────────────────────────────────────────────
   return (
-    <div style={{ padding: '52px 20px 24px' }}>
+    <div className="page" style={{ padding: '52px 20px 24px' }}>
       {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <h2 style={{ fontSize: 26, fontWeight: 800 }}>Sessions</h2>
@@ -668,8 +668,8 @@ function CardioModal({ onAdd, onClose }) {
 
 function Modal({ children, onClose, title }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div className="modal-sheet" style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <span className="label">{title}</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>

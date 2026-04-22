@@ -105,12 +105,13 @@ export default function Social() {
   }
 
   const toggleComments = async (sessionId) => {
+    const isOpening = !openComments.has(sessionId)
     setOpenComments(prev => {
       const next = new Set(prev)
-      next.has(sessionId) ? next.delete(sessionId) : next.add(sessionId)
+      isOpening ? next.add(sessionId) : next.delete(sessionId)
       return next
     })
-    if (!sessionComments[sessionId]) {
+    if (isOpening) {
       const comments = await getSessionComments(sessionId)
       setSessionComments(prev => ({ ...prev, [sessionId]: comments }))
     }
@@ -188,7 +189,7 @@ export default function Social() {
   const activeToday = friends.filter(f => isActiveToday(f.last_active))
 
   return (
-    <div style={{ paddingBottom: 24 }}>
+    <div className="page" style={{ paddingBottom: 24 }}>
       <div style={{ padding: '52px 20px 0', borderBottom: '1px solid var(--border)' }}>
         <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Social</h2>
         <div style={{ display: 'flex' }}>

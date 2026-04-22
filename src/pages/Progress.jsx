@@ -179,7 +179,7 @@ export default function Progress() {
     [volumes])
 
   return (
-    <div style={{ paddingBottom:24 }}>
+    <div className="page" style={{ paddingBottom:24 }}>
       <div style={{ padding:'52px 20px 0', borderBottom:'1px solid var(--border)' }}>
         <h2 style={{ fontSize:26, fontWeight:800, marginBottom:16 }}>Progress</h2>
         <div style={{ display:'flex', overflowX:'auto' }}>
@@ -497,8 +497,8 @@ function PRModal({ form, setForm, status, saving, onClose, onSave }) {
   const name = form.exercise === '__custom__' ? form.customExercise.trim() : form.exercise.trim()
   const canSave = !!name && !!form.weight && !!form.reps && !saving
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
-      <div style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', padding:'24px 20px 40px', width:'100%', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
+    <div className="modal-backdrop" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
+      <div className="modal-sheet" style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', padding:'24px 20px 40px', width:'100%', maxHeight:'85vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
           <span className="label">LOG PR</span>
           <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>

@@ -64,7 +64,7 @@ export default function Profile() {
   }
 
   return (
-    <div style={{ paddingBottom: 40 }}>
+    <div className="page" style={{ paddingBottom: 40 }}>
       {/* Header */}
       <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
