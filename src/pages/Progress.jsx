@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   getWeightLog, addWeight, getPRs, getSessions,
@@ -8,7 +8,8 @@ import {
 import { calcVolumes, getRank, MUSCLE_GROUPS, EXERCISES, calcSessionVolume } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
-const TT = { contentStyle:{ background:'#141414', border:'1px solid #222', borderRadius:8, color:'#f0f0f0', fontSize:12 }, cursor:{ stroke:'#333' } }
+const TT = { contentStyle: { background: '#141414', border: '1px solid #222', borderRadius: 8, color: '#f0f0f0', fontSize: 12 }, cursor: { stroke: '#333' } }
+const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, outline: 'none' }
 
 const MEASURE_FIELDS = [
   { key:'chest',       label:'Chest' },
@@ -32,28 +33,48 @@ export default function Progress() {
   const [newWeight, setNewWeight] = useState('')
   const [showAddW, setShowAddW] = useState(false)
   const [histRange, setHistRange] = useState(30)
-  const [volMode, setVolMode] = useState('week') // week | month
+  const [volMode, setVolMode] = useState('week')
   const [measurements, setMeasurements] = useState([])
   const [showAddM, setShowAddM] = useState(false)
   const [mForm, setMForm] = useState({})
   const [showAddPR, setShowAddPR] = useState(false)
   const [prForm, setPrForm] = useState({ muscleGroup: MUSCLE_GROUPS[0], exercise: '', customExercise: '', weight: '', reps: '' })
-  const [prStatus, setPrStatus] = useState(null) // 'new' | 'same' | null
+  const [prStatus, setPrStatus] = useState(null)
   const [prSaving, setPrSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   useEffect(() => {
     if (!profile) return
-    getWeightLog(profile.id).then(setWeightLog)
-    getPRs(profile.id).then(setPRs)
-    getSessions(profile.id).then(s => { setSessions(s); setVolumes(calcVolumes(s)) })
-    getBodyMeasurements(profile.id).then(setMeasurements)
+    Promise.all([
+      getWeightLog(profile.id),
+      getPRs(profile.id),
+      getSessions(profile.id),
+      getBodyMeasurements(profile.id),
+    ]).then(([wl, p, s, m]) => {
+      if (!mounted.current) return
+      setWeightLog(wl)
+      setPRs(p)
+      setSessions(s)
+      setVolumes(calcVolumes(s))
+      setMeasurements(m)
+    }).catch(e => { if (mounted.current) setError(e.message) })
   }, [profile?.id])
 
   const handleAddWeight = async () => {
     if (!newWeight) return
-    await addWeight(profile.id, new Date().toISOString().split('T')[0], +newWeight)
-    setWeightLog(await getWeightLog(profile.id))
-    setNewWeight(''); setShowAddW(false)
+    try {
+      await addWeight(profile.id, new Date().toISOString().split('T')[0], +newWeight)
+      const wl = await getWeightLog(profile.id)
+      if (mounted.current) { setWeightLog(wl); setNewWeight(''); setShowAddW(false) }
+    } catch (e) {
+      if (mounted.current) setError(e.message)
+    }
   }
 
   const handleAddMeasurement = async () => {
@@ -100,7 +121,7 @@ export default function Progress() {
     sessions.slice(0, 56).forEach(s => {
       const d = new Date(s.date)
       const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay())
-      const key = weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+      const key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       if (!weeks[key]) weeks[key] = 0
       weeks[key] += calcSessionVolume(s)
     })
@@ -112,7 +133,7 @@ export default function Progress() {
     sessions.slice(0, 56).forEach(s => {
       const d = new Date(s.date)
       const weekStart = new Date(d); weekStart.setDate(d.getDate() - d.getDay())
-      const key = weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+      const key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       if (!weeks[key]) weeks[key] = new Set()
       weeks[key].add(s.date?.split('T')[0])
     })
@@ -146,8 +167,9 @@ export default function Progress() {
     return volMode === 'month' ? arr.slice(-6) : arr.slice(-8)
   }, [sessions, volMode])
 
-  const volumeData = MUSCLE_GROUPS.map(g => ({ name: g.slice(0,4).toUpperCase(), vol: Math.round((volumes[g]||0)/1000*10)/10 }))
-  const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'12px 14px', fontSize:15, outline:'none' }
+  const volumeData = useMemo(() =>
+    MUSCLE_GROUPS.map(g => ({ name: g.slice(0, 4).toUpperCase(), vol: Math.round((volumes[g] || 0) / 1000 * 10) / 10 })),
+    [volumes])
 
   return (
     <div style={{ paddingBottom:24 }}>
@@ -160,14 +182,14 @@ export default function Progress() {
         </div>
       </div>
 
-      <div style={{ padding:20 }}>
+      <div style={{ padding: 20 }}>
+        {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
-        {/* HISTORY TAB */}
         {tab === 'history' && (
           <div>
-            <div style={{ display:'flex', gap:8, marginBottom:20 }}>
-              {[30,90,180].map(r => (
-                <button key={r} onClick={()=>setHistRange(r)} style={{ flex:1, background:histRange===r?'var(--accent-low)':'var(--bg3)', border:`1px solid ${histRange===r?'var(--accent)':'var(--border)'}`, borderRadius:'var(--radius-sm)', padding:'8px 0', color:histRange===r?'var(--accent)':'var(--text-dim)', fontSize:11, fontWeight:700 }}>{r}d</button>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {[30, 90, 180].map(r => (
+                <button key={r} onClick={() => setHistRange(r)} style={{ flex: 1, background: histRange === r ? 'var(--accent-low)' : 'var(--bg3)', border: `1px solid ${histRange === r ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 0', color: histRange === r ? 'var(--accent)' : 'var(--text-dim)', fontSize: 11, fontWeight: 700 }}>{r}d</button>
               ))}
             </div>
             <ChartCard title="WEEKLY VOLUME (k lbs)">
@@ -175,10 +197,10 @@ export default function Progress() {
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={volumeByWeek}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                    <XAxis dataKey="week" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} />
-                    <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} unit="k" />
-                    <Tooltip {...TT} formatter={v=>[`${v}k lbs`,'Volume']} />
-                    <Bar dataKey="vol" fill="var(--accent)" radius={[4,4,0,0]} />
+                    <XAxis dataKey="week" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
+                    <Tooltip {...TT} formatter={v => [`${v}k lbs`, 'Volume']} />
+                    <Bar dataKey="vol" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : <Empty>Not enough data yet</Empty>}
@@ -188,23 +210,22 @@ export default function Progress() {
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart data={freqData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                    <XAxis dataKey="week" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} />
-                    <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip {...TT} formatter={v=>[`${v} days`,'Sessions']} />
-                    <Bar dataKey="days" fill="#4a9eb5" radius={[4,4,0,0]} />
+                    <XAxis dataKey="week" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip {...TT} formatter={v => [`${v} days`, 'Sessions']} />
+                    <Bar dataKey="days" fill="#4a9eb5" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : <Empty>Not enough data yet</Empty>}
             </ChartCard>
-            <div style={{ display:'flex', gap:10 }}>
+            <div style={{ display: 'flex', gap: 10 }}>
               <StatCard label="TOTAL SESSIONS" value={sessions.length} />
               <StatCard label="TOTAL PRs" value={prs.length} />
-              <StatCard label="SINCE" value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US',{month:'short',year:'2-digit'}) : '—'} />
+              <StatCard label="SINCE" value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '—'} />
             </div>
           </div>
         )}
 
-        {/* WEIGHT TAB */}
         {tab === 'weight' && (
           <div>
             {weightChartData.length > 1 && (
@@ -212,8 +233,8 @@ export default function Progress() {
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={weightChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
-                    <XAxis dataKey="date" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} domain={['dataMin - 3','dataMax + 3']} />
+                    <XAxis dataKey="date" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} domain={['dataMin - 3', 'dataMax + 3']} />
                     <Tooltip {...TT} />
                     <Line type="monotone" dataKey="weight" stroke="var(--accent)" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -221,12 +242,12 @@ export default function Progress() {
               </ChartCard>
             )}
             {!showAddW ? (
-              <button onClick={()=>setShowAddW(true)} style={{ width:'100%', background:'var(--accent)', border:'none', borderRadius:'var(--radius)', padding:14, color:'#fff', fontWeight:700, fontSize:14, marginBottom:16 }}>+ LOG WEIGHT</button>
+              <button onClick={() => setShowAddW(true)} style={{ width: '100%', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: 14, color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 16 }}>+ LOG WEIGHT</button>
             ) : (
-              <div style={{ display:'flex', gap:10, marginBottom:16 }}>
-                <input style={{...INP,flex:1}} type="number" inputMode="decimal" placeholder={`Weight (${profile?.unit||'lbs'})`} value={newWeight} onChange={e=>setNewWeight(e.target.value)} autoFocus />
-                <button onClick={handleAddWeight} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'12px 18px', color:'#fff', fontWeight:700 }}>LOG</button>
-                <button onClick={()=>setShowAddW(false)} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'12px 14px', color:'var(--text-dim)' }}>×</button>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                <input style={{ ...INP, flex: 1 }} type="number" inputMode="decimal" placeholder={`Weight (${profile?.unit || 'lbs'})`} value={newWeight} onChange={e => setNewWeight(e.target.value)} autoFocus />
+                <button onClick={handleAddWeight} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '12px 18px', color: '#fff', fontWeight: 700 }}>LOG</button>
+                <button onClick={() => setShowAddW(false)} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', color: 'var(--text-dim)' }}>×</button>
               </div>
             )}
             {weightLog.length === 0 && <Empty>No weight logged yet</Empty>}
@@ -327,18 +348,18 @@ export default function Progress() {
               const gPRs = prs.filter(p => p.muscle_group === g)
               if (!gPRs.length) return null
               return (
-                <div key={g} style={{ marginBottom:24 }}>
-                  <div className="label" style={{ color:'var(--accent)', marginBottom:8 }}>{g.toUpperCase()}</div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <div key={g} style={{ marginBottom: 24 }}>
+                  <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>{g.toUpperCase()}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {gPRs.map(pr => (
-                      <div key={pr.id} className="card" style={{ padding:14, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <div key={pr.id} className="card" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontWeight:600, fontSize:14 }}>{pr.exercise}</div>
-                          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2, fontFamily:'var(--mono)' }}>{new Date(pr.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})}</div>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{pr.exercise}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--mono)' }}>{new Date(pr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</div>
                         </div>
-                        <div style={{ textAlign:'right' }}>
-                          <div style={{ fontSize:22, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{pr.weight}</div>
-                          <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · lbs</div>
                         </div>
                       </div>
                     ))}
@@ -359,17 +380,16 @@ export default function Progress() {
           </div>
         )}
 
-        {/* VOLUME TAB */}
         {tab === 'volume' && (
           <div>
             <ChartCard title="VOLUME BY MUSCLE (k lbs)">
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={volumeData} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                  <XAxis dataKey="name" tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} />
-                  <YAxis tick={{fill:'#444',fontSize:9}} axisLine={false} tickLine={false} unit="k" />
-                  <Tooltip {...TT} formatter={v=>[`${v}k lbs`,'Volume']} />
-                  <Bar dataKey="vol" fill="var(--accent)" radius={[4,4,0,0]} />
+                  <XAxis dataKey="name" tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#444', fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
+                  <Tooltip {...TT} formatter={v => [`${v}k lbs`, 'Volume']} />
+                  <Bar dataKey="vol" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -422,14 +442,14 @@ export default function Progress() {
 
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {MUSCLE_GROUPS.map(g => {
-                const vol = volumes[g]||0
+                const vol = volumes[g] || 0
                 const rank = getRank(vol)
                 return (
-                  <div key={g} className="card" style={{ padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <span style={{ fontWeight:600, fontSize:14 }}>{g}</span>
-                    <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:9, letterSpacing:'2px', color:rank.color, fontFamily:'var(--mono)', fontWeight:700 }}>{rank.name}</div>
-                      <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{Math.round(vol).toLocaleString()} lbs</div>
+                  <div key={g} className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{g}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 9, letterSpacing: '2px', color: rank.color, fontFamily: 'var(--mono)', fontWeight: 700 }}>{rank.name}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{Math.round(vol).toLocaleString()} lbs</div>
                     </div>
                   </div>
                 )
@@ -444,8 +464,8 @@ export default function Progress() {
 
 function ChartCard({ title, children }) {
   return (
-    <div className="card" style={{ padding:16, marginBottom:16 }}>
-      <div className="label" style={{ marginBottom:12 }}>{title}</div>
+    <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+      <div className="label" style={{ marginBottom: 12 }}>{title}</div>
       {children}
     </div>
   )
@@ -453,15 +473,15 @@ function ChartCard({ title, children }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="card" style={{ flex:1, padding:14, textAlign:'center' }}>
-      <div style={{ fontSize:22, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{value}</div>
-      <div className="label" style={{ marginTop:3 }}>{label}</div>
+    <div className="card" style={{ flex: 1, padding: 14, textAlign: 'center' }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{value}</div>
+      <div className="label" style={{ marginTop: 3 }}>{label}</div>
     </div>
   )
 }
 
 function Empty({ children }) {
-  return <div style={{ textAlign:'center', padding:'32px 0', color:'var(--text-muted)', fontSize:13 }}>{children}</div>
+  return <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>{children}</div>
 }
 
 function PRModal({ form, setForm, status, saving, onClose, onSave }) {

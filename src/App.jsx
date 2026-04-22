@@ -1,21 +1,32 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import BottomNav from './components/BottomNav'
 import Auth from './pages/Auth'
 import Setup from './pages/Setup'
-import Dashboard from './pages/Dashboard'
-import Session from './pages/Session'
-import Diet from './pages/Diet'
-import Progress from './pages/Progress'
-import Social from './pages/Social'
-import Profile from './pages/Profile'
+
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Session = lazy(() => import('./pages/Session'))
+const Diet = lazy(() => import('./pages/Diet'))
+const Progress = lazy(() => import('./pages/Progress'))
+const Social = lazy(() => import('./pages/Social'))
+const Profile = lazy(() => import('./pages/Profile'))
+
+function PageLoader() {
+  return (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 28, height: 28, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+}
 
 function Inner() {
   const { user, profile } = useAuth()
 
   if (user === undefined) return (
-    <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg)' }}>
-      <div style={{ width:32, height:32, border:'2px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+      <div style={{ width: 32, height: 32, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
@@ -25,17 +36,19 @@ function Inner() {
 
   return (
     <BrowserRouter>
-      <div style={{ maxWidth:480, margin:'0 auto', height:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)' }}>
-        <div style={{ flex:1, overflowY:'auto', overflowX:'hidden', WebkitOverflowScrolling:'touch' }}>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/session" element={<Session />} />
-            <Route path="/diet" element={<Diet />} />
-            <Route path="/progress" element={<Progress />} />
-            <Route path="/social" element={<Social />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+      <div style={{ maxWidth: 480, margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/session" element={<Session />} />
+              <Route path="/diet" element={<Diet />} />
+              <Route path="/progress" element={<Progress />} />
+              <Route path="/social" element={<Social />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Suspense>
         </div>
         <BottomNav />
       </div>

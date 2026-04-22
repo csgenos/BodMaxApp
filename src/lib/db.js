@@ -2,7 +2,8 @@ import { supabase } from './supabase'
 
 // ── PROFILE ──────────────────────────────────────────────
 export const getProfile = async (userId) => {
-  const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
+  if (error && error.code !== 'PGRST116') throw error
   return data
 }
 export const createProfile = async (userId, d) => {
@@ -42,12 +43,13 @@ export const saveSession = async (userId, session) => {
 }
 
 export const getSessions = async (userId) => {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('sessions')
     .select('*, exercises(*, sets(*)), cardio(*)')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
     .order('date', { ascending: false })
+  if (error) throw error
   return data || []
 }
 
@@ -89,8 +91,9 @@ export const deleteTemplate = async (id) => {
 
 // ── DIET ─────────────────────────────────────────────────
 export const getDietByDate = async (userId, date) => {
-  const { data } = await supabase.from('diet_entries').select('*')
+  const { data, error } = await supabase.from('diet_entries').select('*')
     .eq('user_id', userId).eq('date', date).order('created_at', { ascending: false })
+  if (error) throw error
   return data || []
 }
 export const addDietEntry = async (userId, entry) => {
@@ -105,11 +108,13 @@ export const deleteDietEntry = async (userId, id) => {
 
 // ── WEIGHT ────────────────────────────────────────────────
 export const getWeightLog = async (userId) => {
-  const { data } = await supabase.from('weight_log').select('*').eq('user_id', userId).order('date', { ascending: true })
+  const { data, error } = await supabase.from('weight_log').select('*').eq('user_id', userId).order('date', { ascending: true })
+  if (error) throw error
   return data || []
 }
 export const addWeight = async (userId, date, weight) => {
-  await supabase.from('weight_log').insert({ user_id: userId, date, weight })
+  const { error } = await supabase.from('weight_log').insert({ user_id: userId, date, weight })
+  if (error) throw error
 }
 
 // ── BODY MEASUREMENTS ────────────────────────────────────
@@ -132,7 +137,8 @@ export const deleteBodyMeasurement = async (userId, id) => {
 
 // ── PRs ───────────────────────────────────────────────────
 export const getPRs = async (userId) => {
-  const { data } = await supabase.from('personal_records').select('*').eq('user_id', userId).order('muscle_group')
+  const { data, error } = await supabase.from('personal_records').select('*').eq('user_id', userId).order('muscle_group')
+  if (error) throw error
   return data || []
 }
 export const checkAndUpdatePR = async (userId, exercise, muscleGroup, weight, reps) => {
@@ -278,4 +284,51 @@ export const getFriendshipStatus = async (userId, friendId) => {
   const { data } = await supabase.from('friendships').select('id, status, user_id')
     .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`).maybeSingle()
   return data
+}
+
+export const getLeaderboard = async (userId, currentProfile) => {
+  const friends = await getFriends(userId)
+  const allIds = [...friends.map(f => f.id), userId]
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const { data } = await supabase
+    .from('sessions')
+    .select('user_id, date')
+    .in('user_id', allIds)
+    .not('completed_at', 'is', null)
+    .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+
+  const rows = data || []
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+  const weekStr = weekAgo.toISOString().split('T')[0]
+
+  const calcStreak = (dates) => {
+    const ds = new Set(dates)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const todayStr = today.toISOString().split('T')[0]
+    const yd = new Date(today); yd.setDate(yd.getDate() - 1)
+    const ydStr = yd.toISOString().split('T')[0]
+    let streak = 0
+    if (ds.has(todayStr) || ds.has(ydStr)) {
+      const start = new Date(ds.has(todayStr) ? today : yd)
+      while (ds.has(start.toISOString().split('T')[0])) { streak++; start.setDate(start.getDate() - 1) }
+    }
+    return streak
+  }
+
+  const allPersons = [...friends, { ...currentProfile, id: userId }]
+  return allPersons.map(person => {
+    const userRows = rows.filter(s => s.user_id === person.id)
+    const dates = [...new Set(userRows.map(s => (s.date || '').split('T')[0]).filter(Boolean))].sort()
+    return {
+      id: person.id,
+      name: person.name,
+      username: person.username,
+      weeklyCount: dates.filter(d => d >= weekStr).length,
+      monthlyCount: dates.length,
+      streak: calcStreak(dates),
+      isMe: person.id === userId,
+    }
+  }).sort((a, b) => b.weeklyCount - a.weeklyCount)
 }
