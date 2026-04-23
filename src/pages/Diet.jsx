@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getDietByDate, addDietEntry, deleteDietEntry } from '../lib/db'
+import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories } from '../lib/db'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
@@ -12,6 +12,7 @@ export default function Diet() {
   const [form, setForm] = useState({ meal: '', calories: '', protein: '', carbs: '', fat: '', photo: null })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [cardioCalories, setCardioCalories] = useState(0)
   const fileRef = useRef()
   const mounted = useRef(true)
 
@@ -29,7 +30,11 @@ export default function Diet() {
     }
   }
 
-  useEffect(() => { if (profile) load() }, [profile?.id])
+  useEffect(() => {
+    if (!profile) return
+    load()
+    getTodayCardioCalories(profile.id).then(c => { if (mounted.current) setCardioCalories(c) }).catch(() => {})
+  }, [profile?.id])
 
   const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
   const totalProt = entries.reduce((s, e) => s + (e.protein || 0), 0)
@@ -99,6 +104,12 @@ export default function Diet() {
         {(profile?.target_fat || totalFat > 0) && (
           <div style={{ marginTop:10 }}>
             <MacroBar label="FAT" current={`${totalFat}g`} target={`${profile?.target_fat||0}g`} pct={fatPct} color="#9a5ad4" />
+          </div>
+        )}
+        {cardioCalories > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: 'rgba(74,158,181,0.1)', border: '1px solid rgba(74,158,181,0.3)', borderRadius: 8 }}>
+            <span style={{ fontSize: 10, color: '#4a9eb5', fontFamily: 'var(--mono)', letterSpacing: '2px', fontWeight: 700 }}>🔥 CARDIO BURNED</span>
+            <span style={{ fontSize: 12, color: '#4a9eb5', fontFamily: 'var(--mono)', fontWeight: 700 }}>-{cardioCalories} kcal</span>
           </div>
         )}
       </div>

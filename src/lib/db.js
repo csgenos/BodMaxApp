@@ -22,10 +22,11 @@ export const updateLastActive = async (userId) => {
 
 // ── SESSIONS ─────────────────────────────────────────────
 export const saveSession = async (userId, session) => {
+  const completedAt = session.completedAt || new Date().toISOString()
   const payload = {
     date: session.date,
     duration: session.duration,
-    completed_at: session.completedAt || new Date().toISOString(),
+    completed_at: completedAt,
     exercises: (session.exercises || []).map(ex => ({
       name: ex.name,
       muscle_group: ex.muscleGroup,
@@ -42,6 +43,12 @@ export const saveSession = async (userId, session) => {
   }
   const { data, error } = await supabase.rpc('save_session', { payload })
   if (error) throw error
+  if (session.photo) {
+    await supabase.from('sessions')
+      .update({ photo_url: session.photo })
+      .eq('user_id', userId)
+      .eq('completed_at', completedAt)
+  }
   return data
 }
 
@@ -107,6 +114,18 @@ export const addDietEntry = async (userId, entry) => {
 export const deleteDietEntry = async (userId, id) => {
   const { error } = await supabase.from('diet_entries').delete().eq('id', id).eq('user_id', userId)
   if (error) throw error
+}
+
+export const getTodayCardioCalories = async (userId) => {
+  const today = new Date().toISOString().split('T')[0]
+  const { data } = await supabase
+    .from('sessions')
+    .select('cardio(calories)')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .not('completed_at', 'is', null)
+  if (!data) return 0
+  return data.flatMap(s => s.cardio || []).reduce((sum, c) => sum + (c.calories || 0), 0)
 }
 
 // ── WEIGHT ────────────────────────────────────────────────
@@ -247,9 +266,9 @@ export const getFriendRequests = async (userId) => {
 }
 export const getFriends = async (userId) => {
   const [{ data: sent }, { data: recv }] = await Promise.all([
-    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username, last_active)')
+    supabase.from('friendships').select('profiles!friendships_friend_id_fkey(id, name, username, last_active, created_at)')
       .eq('user_id', userId).eq('status', 'accepted'),
-    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username, last_active)')
+    supabase.from('friendships').select('profiles!friendships_user_id_fkey(id, name, username, last_active, created_at)')
       .eq('friend_id', userId).eq('status', 'accepted'),
   ])
   return [

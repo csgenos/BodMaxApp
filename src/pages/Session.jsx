@@ -7,6 +7,12 @@ import {
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
 import { getNotifPermission, requestNotifPermission, showTimerNotification } from '../lib/notifications'
 
+const photoToBase64 = (file) => new Promise((resolve) => {
+  const reader = new FileReader()
+  reader.onload = e => resolve(e.target.result)
+  reader.readAsDataURL(file)
+})
+
 const uid = () => Math.random().toString(36).slice(2)
 const ACTIVE_KEY = 'bm_active_session'
 
@@ -53,6 +59,8 @@ export default function Session() {
   const [restSeconds, setRestSeconds] = useState(0)
   const [restActive, setRestActive] = useState(false)
   const [restDone, setRestDone] = useState(false)
+  const [calDaySessions, setCalDaySessions] = useState(null)
+  const photoRef = useRef()
 
   useEffect(() => { if (profile) load() }, [profile?.id])
   const load = async () => {
@@ -195,10 +203,27 @@ export default function Session() {
   }
 
   const removeExercise = id => setActive(s => ({ ...s, exercises: s.exercises.filter(e => e.id !== id) }))
-  const addSet = exId => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '' }] } : ex) }))
+  const addSet = (exId) => {
+    if (!restActive) {
+      const ex = active?.exercises?.find(e => e.id === exId)
+      const lastSet = ex?.sets?.[ex.sets.length - 1]
+      if (lastSet?.weight && lastSet?.reps) {
+        const w = +lastSet.weight
+        const wLbs = (profile?.unit || 'lbs') === 'kg' ? w * 2.205 : w
+        startRest(wLbs >= 200 ? 180 : wLbs >= 120 ? 120 : 90)
+      }
+    }
+    setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '' }] } : ex) }))
+  }
   const removeSet = (exId, setId) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.filter(st => st.id !== setId) } : ex) }))
   const updateSet = (exId, setId, f, v) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.map(st => st.id === setId ? { ...st, [f]: v } : st) } : ex) }))
   const addCardio = c => { setActive(s => ({ ...s, cardio: [...s.cardio, { ...c, id: uid() }] })); setShowCardio(false) }
+
+  const handleSessionPhoto = async (e) => {
+    const file = e.target.files[0]; if (!file) return
+    const b64 = await photoToBase64(file)
+    setActive(s => ({ ...s, photo: b64 }))
+  }
 
   // ── REST TIMER ───────────────────────────────────────────
   const startRest = async (duration) => {
@@ -264,20 +289,53 @@ export default function Session() {
 
   // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
-    <div className="page" style={{ padding:'60px 20px', textAlign:'center' }}>
+    <div className="page" style={{ padding:'60px 20px 32px', textAlign:'center' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
-      <div style={{ color:'var(--text-dim)', marginBottom:28 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
-      <div style={{ display:'flex', gap:10, marginBottom:24 }}>
-        <StatPill label="VOLUME" value={`${Math.round(calcSessionVolume(summary)).toLocaleString()} lbs`} />
-        <StatPill label="SETS" value={(summary.exercises||[]).reduce((s,e)=>s+e.sets.length,0)} />
+      <div style={{ color:'var(--text-dim)', marginBottom:20 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
+      <div style={{ display:'flex', gap:10, marginBottom:20 }}>
+        <StatPill label="VOLUME" value={`${Math.round(calcSessionVolume(summary)).toLocaleString()} ${profile?.unit || 'lbs'}`} />
+        <StatPill label="SETS" value={(summary.exercises||[]).reduce((s,e)=>s+(e.sets||[]).filter(st=>st.weight&&st.reps).length,0)} />
       </div>
+
       {newPRs.length > 0 && (
-        <div style={{ background: 'var(--accent-low)', border: '1px solid var(--accent)', borderRadius: 12, padding: 16, marginBottom: 24 }}>
+        <div style={{ background: 'var(--accent-low)', border: '1px solid var(--accent)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>🔥 NEW PRs</div>
           {newPRs.map(pr => <div key={pr} style={{ fontWeight: 600, marginBottom: 4 }}>{pr}</div>)}
         </div>
       )}
+
+      {summary.photo && (
+        <div style={{ marginBottom: 16, borderRadius: 12, overflow: 'hidden' }}>
+          <img src={summary.photo} alt="" style={{ width: '100%', height: 180, objectFit: 'cover' }} />
+        </div>
+      )}
+
+      {(summary.exercises || []).length > 0 && (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16, textAlign: 'left' }}>
+          <div className="label" style={{ marginBottom: 12 }}>EXERCISES</div>
+          {(summary.exercises || []).map(ex => {
+            const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
+            if (!validSets.length) return null
+            return (
+              <div key={ex.id} style={{ marginBottom: 10 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{ex.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 2 }}>
+                  {validSets.map((s, i) => `${i + 1}: ${s.weight}×${s.reps}`).join(' · ')}
+                </div>
+              </div>
+            )
+          })}
+          {(summary.cardio || []).map((c, i) => (
+            <div key={i} style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 11, color: '#4a9eb5', fontFamily: 'var(--mono)' }}>
+                🚴 {c.type} · {c.duration} min{c.calories ? ` · ${c.calories} kcal` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {showTemplateSave ? (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16, textAlign: 'left' }}>
           <div className="label" style={{ marginBottom: 10 }}>TEMPLATE NAME</div>
@@ -338,7 +396,7 @@ export default function Session() {
               <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6 }}>
-              <span className="label">#</span><span className="label" style={{ textAlign: 'center' }}>LBS</span><span className="label" style={{ textAlign: 'center' }}>REPS</span><span />
+              <span className="label">#</span><span className="label" style={{ textAlign: 'center' }}>{(profile?.unit || 'lbs').toUpperCase()}</span><span className="label" style={{ textAlign: 'center' }}>REPS</span><span />
             </div>
             {ex.sets.map((set, i) => (
               <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
@@ -390,6 +448,17 @@ export default function Session() {
         {active.exercises.length > 0 && (
           <button onClick={()=>setShowSaveTpl(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>SAVE AS TEMPLATE</button>
         )}
+
+        <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handleSessionPhoto} style={{ display: 'none' }} />
+        {active.photo ? (
+          <div style={{ position: 'relative', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+            <img src={active.photo} alt="" style={{ width: '100%', height: 140, objectFit: 'cover' }} />
+            <button onClick={() => setActive(s => ({ ...s, photo: null }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, fontSize: 16, cursor: 'pointer' }}>×</button>
+          </div>
+        ) : (
+          <button onClick={() => photoRef.current.click()} style={{ background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>📷 ADD SESSION PHOTO</button>
+        )}
+
         <button onClick={()=>setShowDiscard(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>DISCARD SESSION</button>
       </div>
 
@@ -465,7 +534,7 @@ export default function Session() {
             const hasSession = sessionDates.has(dateStr)
             const isToday = dateStr === new Date().toISOString().split('T')[0]
             return (
-              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: hasSession ? 'var(--accent-low)' : isToday ? 'var(--bg3)' : 'transparent', border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}` }}>
+              <div key={i} onClick={() => { if (hasSession) { const list = sessions.filter(s => s.date?.split('T')[0] === dateStr); setCalDaySessions({ dateStr, list }) } }} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: hasSession ? 'var(--accent-low)' : isToday ? 'var(--bg3)' : 'transparent', border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}`, cursor: hasSession ? 'pointer' : 'default' }}>
                 <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 400, color: hasSession ? 'var(--accent)' : isToday ? 'var(--accent)' : 'var(--text-dim)' }}>{d}</span>
                 {hasSession && <div style={{ width: 4, height: 4, background: 'var(--accent)', borderRadius: '50%', marginTop: 2 }} />}
               </div>
@@ -473,6 +542,30 @@ export default function Session() {
           })}
         </div>
         {showTemplates && <TemplatesModal templates={templates} sessions={sessions} onPickTemplate={startFromTemplate} onPickSession={startFromPastSession} onDeleteTemplate={handleDeleteTemplate} onClose={()=>setShowTemplates(false)} />}
+        {calDaySessions && (
+          <Modal onClose={() => setCalDaySessions(null)} title={new Date(calDaySessions.dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {calDaySessions.list.map(s => {
+                const vol = calcSessionVolume(s)
+                const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
+                return (
+                  <div key={s.id} style={{ background: 'var(--bg3)', borderRadius: 'var(--radius-sm)', padding: '12px 14px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{groups.join(', ') || 'Workout'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 6 }}>
+                      {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} {profile?.unit || 'lbs'}{s.duration ? ` · ${Math.floor(s.duration/60)}m` : ''}
+                    </div>
+                    {(s.exercises||[]).slice(0, 4).map(ex => (
+                      <div key={ex.id || ex.name} style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 2 }}>
+                        {ex.name} — {(ex.sets||[]).filter(st=>st.weight&&st.reps).length} sets
+                      </div>
+                    ))}
+                    {(s.exercises||[]).length > 4 && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>+{(s.exercises||[]).length - 4} more</div>}
+                  </div>
+                )
+              })}
+            </div>
+          </Modal>
+        )}
       </div>
     )
   }
