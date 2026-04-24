@@ -20,6 +20,12 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }],
+        shortcuts: [
+          { name: 'Start Session', short_name: 'Train', description: 'Log a workout', url: '/session', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+          { name: 'Log Meal', short_name: 'Nutrition', description: 'Track your nutrition', url: '/diet', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+          { name: 'Progress', short_name: 'Progress', description: 'View your stats', url: '/progress', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+          { name: 'Social', short_name: 'Social', description: 'Friends & leaderboard', url: '/social', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+        ],
       },
     }),
   ],

@@ -4,6 +4,7 @@ import { getSessions, getPRs, updateProfile } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUSCLE_GROUPS } from '../lib/ranks'
 import { calcStreak } from '../lib/streaks'
 import { getAchievements } from '../lib/achievements'
+import { isAudioEnabled, setAudioEnabled } from '../lib/audio'
 
 const ACCENTS = ['#e0161e', '#e07016', '#e0c016', '#16c216', '#1680e0', '#8016e0', '#e016b4', '#f0f0f0']
 const GOALS = ['bulk', 'cut', 'maintain']
@@ -20,6 +21,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [error, setError] = useState(null)
+  const [audioOn, setAudioOn] = useState(() => isAudioEnabled())
   const mounted = useRef(true)
 
   useEffect(() => {
@@ -252,6 +254,12 @@ export default function Profile() {
                   <span className="label">APPEARANCE</span>
                   <button onClick={toggleTheme} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: 'var(--text)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {theme === 'dark' ? '☀ LIGHT' : '☾ DARK'}
+                  </button>
+                </div>
+                <div className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="label">AUDIO CUES</span>
+                  <button onClick={() => { const next = !audioOn; setAudioEnabled(next); setAudioOn(next) }} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: audioOn ? 'var(--accent)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)' }}>
+                    {audioOn ? '🔊 ON' : '🔇 OFF'}
                   </button>
                 </div>
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>

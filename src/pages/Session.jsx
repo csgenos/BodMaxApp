@@ -7,6 +7,13 @@ import {
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
 import { getNotifPermission, requestNotifPermission, showTimerNotification, subscribePush, isPushSubscribed } from '../lib/notifications'
 import { haptic } from '../lib/haptics'
+import { audio } from '../lib/audio'
+
+const REP_RANGE_KEY = 'bm_rep_ranges'
+const getRepRanges = () => { try { return JSON.parse(localStorage.getItem(REP_RANGE_KEY) || '{}') } catch { return {} } }
+const saveRepRange = (name, min, max) => { const r = getRepRanges(); r[name] = { min: +min, max: +max }; localStorage.setItem(REP_RANGE_KEY, JSON.stringify(r)) }
+const deleteRepRange = (name) => { const r = getRepRanges(); delete r[name]; localStorage.setItem(REP_RANGE_KEY, JSON.stringify(r)) }
+const SESSION_MILESTONES = [1, 10, 25, 50, 100, 250, 500]
 
 const uid = () => Math.random().toString(36).slice(2)
 const ACTIVE_KEY = 'bm_active_session'
@@ -50,7 +57,13 @@ export default function Session() {
   const [tplName, setTplName] = useState('')
   const [showDiscard, setShowDiscard] = useState(false)
   const [error, setError] = useState(null)
-  const [oneRMEx, setOneRMEx] = useState(null) // { name, sets } for 1RM modal
+  const [oneRMEx, setOneRMEx] = useState(null)
+  const [plateEx, setPlateEx] = useState(null)
+  const [customExercises, setCustomExercises] = useState([])
+  const [repRanges, setRepRanges] = useState(getRepRanges)
+  const [editingRange, setEditingRange] = useState(null)
+  const [rangeForm, setRangeForm] = useState({ min: '', max: '' })
+  const [milestone, setMilestone] = useState(null)
   const restIntervalRef = useRef(null)
   const [restSeconds, setRestSeconds] = useState(0)
   const [restActive, setRestActive] = useState(false)
@@ -221,7 +234,7 @@ export default function Session() {
         clearInterval(restIntervalRef.current)
         setRestActive(false)
         setRestDone(true)
-        haptic.timer()
+        haptic.timer(); audio.restDone()
         setTimeout(() => setRestDone(false), 4000)
         // Show notification — works even when app is backgrounded in standalone mode
         showTimerNotification('Rest Complete ⏱', 'Time to get back to your workout!')
@@ -254,9 +267,18 @@ export default function Session() {
         )
         const results = await Promise.all(prChecks)
         const prs = [...new Set(results.filter(Boolean))]
-        if (prs.length > 0) haptic.pr(); else haptic.success()
+        const newCount = sessions.length + 1
+        const hitSessionMilestone = SESSION_MILESTONES.includes(newCount)
+        if (prs.length > 0) { haptic.pr(); audio.pr() }
+        else if (hitSessionMilestone) { haptic.success(); audio.milestone() }
+        else { haptic.success(); audio.setLogged() }
+        const MILESTONE_LABELS = { 1: { emoji: '🎯', label: 'First Session!' }, 10: { emoji: '🔥', label: '10 Sessions!' }, 25: { emoji: '💪', label: '25 Sessions!' }, 50: { emoji: '⚡', label: '50 Sessions!' }, 100: { emoji: '🏆', label: '100 Sessions!' }, 250: { emoji: '👑', label: '250 Sessions!' }, 500: { emoji: '🌟', label: '500 Sessions!' } }
         await load()
-        setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
+        setNewPRs(prs)
+        setSummary(sess)
+        setActive(null)
+        setMilestone(hitSessionMilestone ? MILESTONE_LABELS[newCount] : prs.length > 0 ? { emoji: '🔥', label: `New PR — ${prs[0]}!` } : null)
+        setView('summary')
       }
     } catch(e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -270,6 +292,7 @@ export default function Session() {
   // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
     <div className="page" style={{ padding:'var(--page-top) 20px 24px', textAlign:'center' }}>
+      {milestone && <MilestoneCelebration emoji={milestone.emoji} label={milestone.label} onDone={() => setMilestone(null)} />}
       <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:28 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
@@ -340,17 +363,40 @@ export default function Session() {
         {active.exercises.map(ex => (
           <div key={ex.id} className="card" style={{ padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                  {(() => {
+                    const status = overloadStatus(ex)
+                    if (!status) return null
+                    const cfg = { up: { label: '↑', color: '#22c55e' }, down: { label: '↓', color: 'var(--accent)' }, same: { label: '→', color: 'var(--text-muted)' } }[status]
+                    return <span style={{ fontSize: 13, fontWeight: 800, color: cfg.color, fontFamily: 'var(--mono)' }}>{cfg.label}</span>
+                  })()}
+                </div>
                 <div style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: '2px', fontFamily: 'var(--mono)', marginTop: 2 }}>{ex.muscleGroup}</div>
                 {suggestions[ex.name] && (
                   <div style={{ fontSize: 11, color: '#4a9eb5', marginTop: 4, background: 'rgba(74,158,181,0.1)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
                     💡 Last: {suggestions[ex.name].weight} lbs × {suggestions[ex.name].reps} reps
                   </div>
                 )}
+                {/* Rep range badge / inline editor */}
+                {editingRange === ex.id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <input type="number" inputMode="numeric" placeholder="8" value={rangeForm.min} onChange={e => setRangeForm(f => ({ ...f, min: e.target.value }))} style={{ width: 44, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '4px 6px', fontSize: 12, textAlign: 'center', fontFamily: 'var(--mono)' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>–</span>
+                    <input type="number" inputMode="numeric" placeholder="12" value={rangeForm.max} onChange={e => setRangeForm(f => ({ ...f, max: e.target.value }))} style={{ width: 44, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '4px 6px', fontSize: 12, textAlign: 'center', fontFamily: 'var(--mono)' }} />
+                    <button onClick={() => { if (rangeForm.min && rangeForm.max) { saveRepRange(ex.name, rangeForm.min, rangeForm.max); setRepRanges(getRepRanges()) } setEditingRange(null) }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 6, padding: '4px 10px', color: '#fff', fontSize: 11, fontWeight: 700 }}>SET</button>
+                    <button onClick={() => { deleteRepRange(ex.name); setRepRanges(getRepRanges()); setEditingRange(null) }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 14 }}>×</button>
+                  </div>
+                ) : (
+                  <button onClick={() => { const r = repRanges[ex.name]; setRangeForm(r ? { min: String(r.min), max: String(r.max) } : { min: '', max: '' }); setEditingRange(ex.id) }} style={{ marginTop: 4, background: 'none', border: 'none', padding: 0, color: repRanges[ex.name] ? '#22c55e' : 'var(--text-muted)', fontSize: 10, fontFamily: 'var(--mono)', cursor: 'pointer' }}>
+                    {repRanges[ex.name] ? `TARGET ${repRanges[ex.name].min}–${repRanges[ex.name].max} reps` : '+ SET REP RANGE'}
+                  </button>
+                )}
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button onClick={() => setOneRMEx(ex)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 13, padding: '3px 8px', fontFamily: 'var(--mono)' }}>1RM</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                <button onClick={() => setOneRMEx(ex)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 11, padding: '3px 7px', fontFamily: 'var(--mono)' }}>1RM</button>
+                <button onClick={() => { const last = ex.sets.filter(s=>!s.warmup&&s.weight).slice(-1)[0]; setPlateEx({ name: ex.name, lastWeight: last?.weight || '' }) }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 11, padding: '3px 7px', fontFamily: 'var(--mono)' }}>PLATES</button>
                 <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
               </div>
             </div>
@@ -361,7 +407,7 @@ export default function Session() {
               <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
                 <button onClick={() => { toggleWarmup(ex.id, set.id); haptic.light() }} style={{ background: set.warmup ? 'rgba(224,22,30,0.15)' : 'var(--bg3)', border: set.warmup ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: 6, color: set.warmup ? 'var(--accent)' : 'var(--text-muted)', fontSize: 10, padding: '4px 2px', textAlign: 'center', fontFamily: 'var(--mono)', fontWeight: 700, cursor: 'pointer' }}>{set.warmup ? 'W' : i + 1}</button>
                 <input style={INP} type="number" inputMode="decimal" placeholder={suggestions[ex.name]?.weight || '0'} value={set.weight} onChange={e => updateSet(ex.id, set.id, 'weight', e.target.value)} />
-                <input style={INP} type="number" inputMode="numeric" placeholder={suggestions[ex.name]?.reps || '0'} value={set.reps} onChange={e => updateSet(ex.id, set.id, 'reps', e.target.value)} />
+                <input style={{ ...INP, ...((() => { const r = repRanges[ex.name]; if (!r || !set.reps) return {}; const inRange = +set.reps >= r.min && +set.reps <= r.max; return { borderColor: inRange ? '#22c55e' : '#f59e0b', background: inRange ? 'rgba(34,197,94,0.08)' : 'rgba(245,158,11,0.08)' } })()) }} type="number" inputMode="numeric" placeholder={suggestions[ex.name]?.reps || '0'} value={set.reps} onChange={e => { updateSet(ex.id, set.id, 'reps', e.target.value); if (e.target.value) audio.setLogged() }} />
                 <button onClick={() => removeSet(ex.id, set.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18 }}>−</button>
               </div>
             ))}
@@ -424,6 +470,7 @@ export default function Session() {
       {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} />}
       {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} />}
       {oneRMEx && <OneRMModal ex={oneRMEx} onClose={()=>setOneRMEx(null)} />}
+      {plateEx && <PlateModal name={plateEx.name} lastWeight={plateEx.lastWeight} unit={profile?.unit || 'lbs'} onClose={()=>setPlateEx(null)} />}
       {showDiscard && (
         <Modal onClose={()=>setShowDiscard(false)} title="DISCARD SESSION?">
           <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:16, lineHeight:1.5 }}>
@@ -713,6 +760,126 @@ function CardioModal({ onAdd, onClose }) {
         <input style={INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e => setCalories(e.target.value)} />
       </div>
       <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
+    </Modal>
+  )
+}
+
+function MilestoneCelebration({ emoji, label, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t) }, [])
+  const particles = Array.from({ length: 24 }, (_, i) => {
+    const angle = (i / 24) * 360
+    const dist = 80 + Math.random() * 80
+    const size = 6 + Math.random() * 8
+    const colors = ['var(--accent)', '#22c55e', '#f59e0b', '#3b82f6', '#a855f7', '#ec4899']
+    const color = colors[i % colors.length]
+    return { angle, dist, size, color, delay: Math.random() * 0.4 }
+  })
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', animation: 'fadeInOut 3.2s ease forwards' }}
+      onClick={onDone}>
+      <style>{`
+        @keyframes fadeInOut { 0%{opacity:0} 8%{opacity:1} 75%{opacity:1} 100%{opacity:0} }
+        @keyframes burst { 0%{transform:translate(-50%,-50%) scale(0)} 20%{transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(1)} 100%{transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(0.5);opacity:0} }
+      `}</style>
+      {particles.map((p, i) => {
+        const tx = Math.cos(p.angle * Math.PI / 180) * p.dist
+        const ty = Math.sin(p.angle * Math.PI / 180) * p.dist
+        return (
+          <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', width: p.size, height: p.size, borderRadius: '50%', background: p.color, '--tx': `${tx}px`, '--ty': `${ty}px`, animation: `burst 1.2s ${p.delay}s ease-out forwards`, transform: 'translate(-50%,-50%) scale(0)' }} />
+        )
+      })}
+      <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <div style={{ fontSize: 80, lineHeight: 1, marginBottom: 16 }}>{emoji}</div>
+        <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>{label}</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>tap to dismiss</div>
+      </div>
+    </div>
+  )
+}
+
+function PlateModal({ name, lastWeight, unit, onClose }) {
+  const [weight, setWeight] = useState(String(lastWeight || ''))
+  const isKg = unit === 'kg'
+  const barWeight = isKg ? 20 : 45
+  const plateList = isKg ? [20, 15, 10, 5, 2.5, 1.25] : [45, 35, 25, 10, 5, 2.5]
+  const plateColors = { 20: '#e0161e', 15: '#2563eb', 10: '#16a34a', 5: '#ca8a04', 2.5: '#9ca3af', 1.25: '#d1d5db', 45: '#e0161e', 35: '#2563eb', 25: '#16a34a' }
+
+  const calcPlates = (target) => {
+    if (!target || +target <= barWeight) return []
+    let rem = Math.round(((+target - barWeight) / 2) * 1000) / 1000
+    const result = []
+    for (const p of plateList) {
+      const count = Math.floor(Math.round(rem / p * 1000) / 1000)
+      if (count > 0) { result.push({ plate: p, count }); rem = Math.round((rem - count * p) * 1000) / 1000 }
+    }
+    return result
+  }
+
+  const plates = calcPlates(weight)
+  const total = plates.reduce((s, p) => s + p.plate * p.count * 2, 0) + barWeight
+  const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '11px 12px', fontSize: 18, textAlign: 'center', fontFamily: 'var(--mono)', width: '100%' }
+
+  return (
+    <Modal onClose={onClose} title={`PLATES — ${name}`}>
+      <div style={{ marginBottom: 16 }}>
+        <div className="label" style={{ marginBottom: 6 }}>TARGET WEIGHT ({unit.toUpperCase()})</div>
+        <input style={INP} type="number" inputMode="decimal" placeholder={`e.g. ${isKg ? '100' : '225'}`} value={weight} onChange={e => setWeight(e.target.value)} autoFocus />
+      </div>
+      {+weight > 0 && +weight <= barWeight && (
+        <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '8px 0' }}>Bar only ({barWeight} {unit})</div>
+      )}
+      {plates.length > 0 && (
+        <>
+          <div style={{ background: 'var(--accent)', borderRadius: 'var(--radius)', padding: '12px 16px', textAlign: 'center', marginBottom: 16, display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--mono)' }}>EACH SIDE</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: 'var(--mono)' }}>{plates.reduce((s,p)=>s+p.plate*p.count,0)} {unit}</div>
+            </div>
+            <div style={{ width: 1, height: 36, background: 'rgba(255,255,255,0.3)' }} />
+            <div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--mono)' }}>TOTAL</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: 'var(--mono)' }}>{total} {unit}</div>
+            </div>
+          </div>
+          {/* Visual bar */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, marginBottom: 16, height: 48 }}>
+            <div style={{ width: 24, height: 8, background: 'var(--text-dim)', borderRadius: 2 }} />
+            <div style={{ width: 8, height: 32, background: '#888', borderRadius: 2 }} />
+            {[...plates].reverse().map((p, i) => (
+              <div key={i} style={{ display: 'flex', gap: 2 }}>
+                {Array.from({ length: p.count }, (_, j) => (
+                  <div key={j} style={{ width: 10, height: 28 + (plateList.indexOf(p.plate) * -2), background: plateColors[p.plate] || '#888', borderRadius: 2 }} />
+                ))}
+              </div>
+            ))}
+            <div style={{ width: 40, height: 8, background: 'var(--text-dim)', borderRadius: 2 }} />
+            {plates.map((p, i) => (
+              <div key={i} style={{ display: 'flex', gap: 2 }}>
+                {Array.from({ length: p.count }, (_, j) => (
+                  <div key={j} style={{ width: 10, height: 28 + (plateList.indexOf(p.plate) * -2), background: plateColors[p.plate] || '#888', borderRadius: 2 }} />
+                ))}
+              </div>
+            ))}
+            <div style={{ width: 8, height: 32, background: '#888', borderRadius: 2 }} />
+            <div style={{ width: 24, height: 8, background: 'var(--text-dim)', borderRadius: 2 }} />
+          </div>
+          {/* Plate list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {plates.map(p => (
+              <div key={p.plate} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg3)', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 12, height: 20, background: plateColors[p.plate] || '#888', borderRadius: 2 }} />
+                  <span style={{ fontWeight: 700, fontFamily: 'var(--mono)' }}>{p.plate} {unit}</span>
+                </div>
+                <span style={{ color: 'var(--accent)', fontWeight: 800, fontFamily: 'var(--mono)', fontSize: 18 }}>× {p.count} per side</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+              <span>BAR</span><span>{barWeight} {unit}</span>
+            </div>
+          </div>
+        </>
+      )}
     </Modal>
   )
 }
