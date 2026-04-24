@@ -793,7 +793,7 @@ function SessionHeatmap({ sessions }) {
 }
 
 function TabBtn({ active, onClick, children }) {
-  return <button onClick={onClick} style={{ background: active ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '9px 20px', color: active ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: active ? 700 : 500 }}>{children}</button>
+  return <button onClick={onClick} style={{ flex: 1, background: active ? 'var(--accent)' : 'transparent', border: 'none', borderRadius: 100, padding: '9px 20px', color: active ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: active ? 700 : 500 }}>{children}</button>
 }
 
 function StatPill({ label, value }) {
