@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   getSessions, saveSession, updateSession, deleteSession, checkAndUpdatePR, getLastExerciseSets,
   getTemplates, saveTemplate, deleteTemplate, updateProfile,
+  getCustomExercises, saveCustomExercise, deleteCustomExercise,
 } from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
 import { getNotifPermission, requestNotifPermission, showTimerNotification, subscribePush, isPushSubscribed } from '../lib/notifications'
@@ -51,6 +52,7 @@ export default function Session() {
   const [showDiscard, setShowDiscard] = useState(false)
   const [error, setError] = useState(null)
   const [oneRMEx, setOneRMEx] = useState(null) // { name, sets } for 1RM modal
+  const [customExercises, setCustomExercises] = useState([])
   const restIntervalRef = useRef(null)
   const [restSeconds, setRestSeconds] = useState(0)
   const [restActive, setRestActive] = useState(false)
@@ -58,8 +60,8 @@ export default function Session() {
 
   useEffect(() => { if (profile) load() }, [profile?.id])
   const load = async () => {
-    const [s, t] = await Promise.all([getSessions(profile.id), getTemplates(profile.id)])
-    setSessions(s); setTemplates(t)
+    const [s, t, cx] = await Promise.all([getSessions(profile.id), getTemplates(profile.id), getCustomExercises(profile.id)])
+    setSessions(s); setTemplates(t); setCustomExercises(cx)
   }
 
   // Persist / clear the in-progress session on every change. Elapsed is
@@ -185,15 +187,37 @@ export default function Session() {
     setTemplates(await getTemplates(profile.id))
   }
 
-  const addExercise = async (name, group) => {
-    const newEx = { id: uid(), name, muscleGroup: group, sets: [{ id: uid(), weight: '', reps: '' }] }
+  const addExercise = async (name, group, isCustom = false) => {
+    const newEx = { id: uid(), name, muscleGroup: group, sets: [{ id: uid(), weight: '', reps: '', warmup: false }] }
     setActive(s => ({ ...s, exercises: [...s.exercises, newEx] }))
     setShowPicker(false)
+    if (isCustom) {
+      try { await saveCustomExercise(profile.id, name, group) } catch { /* duplicate — ignore */ }
+      setCustomExercises(prev => prev.find(e => e.name === name) ? prev : [...prev, { name, muscle_group: group }])
+    }
     const lastSets = await getLastExerciseSets(profile.id, name)
     if (lastSets?.length) {
       const best = lastSets.reduce((a, b) => (+b.weight || 0) > (+a.weight || 0) ? b : a)
       setSuggestions(s => ({ ...s, [name]: { weight: best.weight, reps: best.reps } }))
     }
+  }
+
+  const handleDeleteCustomExercise = async (id) => {
+    await deleteCustomExercise(profile.id, id)
+    setCustomExercises(prev => prev.filter(e => e.id !== id))
+  }
+
+  const overloadStatus = (ex) => {
+    const sugg = suggestions[ex.name]
+    if (!sugg) return null
+    const working = (ex.sets || []).filter(s => !s.warmup && s.weight && s.reps)
+    if (!working.length) return null
+    const best = working.reduce((a, b) => +b.weight > +a.weight ? b : a)
+    if (+best.weight > +sugg.weight) return 'up'
+    if (+best.weight < +sugg.weight) return 'down'
+    if (+best.reps > +sugg.reps) return 'up'
+    if (+best.reps < +sugg.reps) return 'down'
+    return 'same'
   }
 
   const removeExercise = id => setActive(s => ({ ...s, exercises: s.exercises.filter(e => e.id !== id) }))
@@ -341,11 +365,19 @@ export default function Session() {
           <div key={ex.id} className="card" style={{ padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{ex.name}</div>
+                  {(() => {
+                    const status = overloadStatus(ex)
+                    if (!status) return null
+                    const cfg = { up: { label: '↑', color: '#22c55e' }, down: { label: '↓', color: 'var(--accent)' }, same: { label: '→', color: 'var(--text-muted)' } }[status]
+                    return <span style={{ fontSize: 13, fontWeight: 800, color: cfg.color, fontFamily: 'var(--mono)' }}>{cfg.label}</span>
+                  })()}
+                </div>
                 <div style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: '2px', fontFamily: 'var(--mono)', marginTop: 2 }}>{ex.muscleGroup}</div>
                 {suggestions[ex.name] && (
                   <div style={{ fontSize: 11, color: '#4a9eb5', marginTop: 4, background: 'rgba(74,158,181,0.1)', borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
-                    💡 Last: {suggestions[ex.name].weight} lbs × {suggestions[ex.name].reps} reps
+                    Last: {suggestions[ex.name].weight} lbs × {suggestions[ex.name].reps} reps
                   </div>
                 )}
               </div>
@@ -421,7 +453,7 @@ export default function Session() {
         <button onClick={()=>setShowDiscard(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>DISCARD SESSION</button>
       </div>
 
-      {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} />}
+      {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} customExercises={customExercises} onDeleteCustom={handleDeleteCustomExercise} />}
       {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} />}
       {oneRMEx && <OneRMModal ex={oneRMEx} onClose={()=>setOneRMEx(null)} />}
       {showDiscard && (
@@ -470,17 +502,8 @@ export default function Session() {
     </div>
   )
 
-  // ── CALENDAR VIEW ─────────────────────────────────────────
+  // ── CALENDAR / HEATMAP VIEW ───────────────────────────────
   if (view === 'calendar') {
-    const sessionDates = new Set(sessions.map(s => s.date?.split('T')[0]))
-    const year = calMonth.getFullYear(), month = calMonth.getMonth()
-    const firstDay = new Date(year, month, 1).getDay()
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const cells = []
-    for (let i = 0; i < firstDay; i++) cells.push(null)
-    for (let d = 1; d <= daysInMonth; d++) cells.push(d)
-    const monthStr = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-
     return (
       <div className="page" style={{ padding: 'var(--page-top) 20px 24px' }}>
         <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Training</h2>
@@ -488,35 +511,11 @@ export default function Session() {
           <TabBtn active={false} onClick={() => setView('list')}>List</TabBtn>
           <TabBtn active={true} onClick={() => setView('calendar')}>Calendar</TabBtn>
         </div>
-        <div style={{ display:'flex', gap:10, marginBottom:12 }}>
+        <div style={{ display:'flex', gap:10, marginBottom:20 }}>
           <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:'16px 0', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><span>▶</span> Start Session</button>
           <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:14, fontWeight:600 }}>Template</button>
         </div>
-
-        <div className="card" style={{ padding:16, marginBottom:0 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-          <span style={{ fontSize:18, fontWeight:800 }}>{monthStr}</span>
-          <div style={{ display:'flex', gap:8 }}><button onClick={()=>setCalMonth(new Date(year,month-1,1))} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:20, padding:'0 4px' }}>←</button>
-          <button onClick={()=>setCalMonth(new Date(year,month+1,1))} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:20, padding:'0 4px' }}>→</button></div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-dim)', padding: '4px 0' }}>{d}</div>)}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6 }}>
-          {cells.map((d, i) => {
-            if (!d) return <div key={i} />
-            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-            const hasSession = sessionDates.has(dateStr)
-            const isToday = dateStr === new Date().toISOString().split('T')[0]
-            return (
-              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: isToday ? '1px solid var(--accent)' : '1px solid transparent' }}>
-                <span style={{ fontSize: 14, fontWeight: isToday ? 700 : 400, color: isToday ? 'var(--accent)' : 'var(--text)' }}>{d}</span>
-                {hasSession && <div style={{ width: 6, height: 6, background: 'var(--accent)', borderRadius: '50%', marginTop: 2 }} />}
-              </div>
-            )
-          })}
-        </div>
-        </div>
+        <SessionHeatmap sessions={sessions} />
         {showTemplates && <TemplatesModal templates={templates} sessions={sessions} onPickTemplate={startFromTemplate} onPickSession={startFromPastSession} onDeleteTemplate={handleDeleteTemplate} onClose={()=>setShowTemplates(false)} />}
       </div>
     )
@@ -585,6 +584,81 @@ export default function Session() {
   )
 }
 
+function SessionHeatmap({ sessions }) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const volMap = {}
+  sessions.forEach(s => {
+    const d = s.date?.split('T')[0]
+    if (d) volMap[d] = (volMap[d] || 0) + calcSessionVolume(s)
+  })
+  // Build 18 weeks × 7 days grid, columns = weeks (left = oldest)
+  const WEEKS = 18
+  const totalDays = WEEKS * 7
+  const start = new Date(today)
+  start.setDate(today.getDate() - totalDays + 1)
+  // Align start to Sunday
+  start.setDate(start.getDate() - start.getDay())
+  const days = []
+  for (let i = 0; i < WEEKS * 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i)
+    const dateStr = d.toISOString().split('T')[0]
+    days.push({ dateStr, vol: volMap[dateStr] || 0, isFuture: d > today, isToday: d.getTime() === today.getTime() })
+  }
+  const maxVol = Math.max(...days.map(d => d.vol), 1)
+  const totalSessions = sessions.length
+  const streak = (() => {
+    let s = 0, d = new Date(today)
+    while (true) {
+      const key = d.toISOString().split('T')[0]
+      if (!volMap[key]) break
+      s++; d.setDate(d.getDate() - 1)
+    }
+    return s
+  })()
+  const DAY_LABELS = ['S','M','T','W','T','F','S']
+  return (
+    <div className="card" style={{ padding: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>Activity</div>
+        <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+          <span><span style={{ color: 'var(--accent)', fontWeight: 700 }}>{streak}</span> day streak</span>
+          <span><span style={{ color: 'var(--accent)', fontWeight: 700 }}>{totalSessions}</span> sessions</span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 3 }}>
+        {/* Day labels column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginRight: 2 }}>
+          {DAY_LABELS.map((l, i) => (
+            <div key={i} style={{ height: 12, width: 10, fontSize: 8, color: 'var(--text-muted)', lineHeight: '12px', fontFamily: 'var(--mono)' }}>{i % 2 === 1 ? l : ''}</div>
+          ))}
+        </div>
+        {/* Week columns */}
+        <div style={{ display: 'flex', gap: 3, overflowX: 'auto' }}>
+          {Array.from({ length: WEEKS }, (_, wi) => (
+            <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {days.slice(wi * 7, wi * 7 + 7).map(({ dateStr, vol, isFuture, isToday }) => {
+                const opacity = isFuture ? 0 : vol ? Math.max(0.2, vol / maxVol) : 1
+                const bg = isFuture ? 'transparent' : vol ? 'var(--accent)' : 'var(--bg3)'
+                return (
+                  <div key={dateStr} title={vol ? `${dateStr}: ${Math.round(vol).toLocaleString()} lbs` : dateStr}
+                    style={{ width: 12, height: 12, borderRadius: 2, background: bg, opacity, outline: isToday ? '1px solid var(--accent)' : 'none', outlineOffset: 1 }} />
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, justifyContent: 'flex-end' }}>
+        <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>LESS</span>
+        {[0.15, 0.35, 0.6, 0.85, 1].map(o => (
+          <div key={o} style={{ width: 10, height: 10, borderRadius: 2, background: o === 0.15 ? 'var(--bg3)' : 'var(--accent)', opacity: o }} />
+        ))}
+        <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>MORE</span>
+      </div>
+    </div>
+  )
+}
+
 function TabBtn({ active, onClick, children }) {
   return <button onClick={onClick} style={{ background: active ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '9px 20px', color: active ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: active ? 700 : 500 }}>{children}</button>
 }
@@ -598,15 +672,16 @@ function StatPill({ label, value }) {
   )
 }
 
-function ExercisePicker({ group, onGroupChange, onSelect, onClose }) {
+function ExercisePicker({ group, onGroupChange, onSelect, onClose, customExercises = [], onDeleteCustom }) {
   const [customName, setCustomName] = useState('')
   const [showCustom, setShowCustom] = useState(false)
   const submitCustom = () => {
     const n = customName.trim()
     if (!n) return
-    onSelect(n, group)
+    onSelect(n, group, true)
     setCustomName(''); setShowCustom(false)
   }
+  const groupCustom = customExercises.filter(e => e.muscle_group === group)
   return (
     <Modal onClose={onClose} title="ADD EXERCISE">
       <div style={{ position:'sticky', top:0, background:'var(--bg2)', zIndex:1, marginLeft:-20, marginRight:-20, paddingLeft:20, paddingRight:20, paddingTop:4, paddingBottom:12, marginTop:-16, marginBottom:2 }}>
@@ -632,6 +707,19 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose }) {
         </div>
       ) : (
         <button onClick={()=>setShowCustom(true)} style={{ width:'100%', background:'transparent', border:'1px dashed var(--accent)', borderRadius:'var(--radius-sm)', padding:'12px', color:'var(--accent)', fontSize:13, fontWeight:700, letterSpacing:'1px', marginBottom:12 }}>+ CUSTOM MACHINE / EXERCISE</button>
+      )}
+      {groupCustom.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div className="label" style={{ marginBottom: 8 }}>MY EXERCISES</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {groupCustom.map(ex => (
+              <div key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button onClick={() => onSelect(ex.name, group)} style={{ flex: 1, background: 'rgba(224,22,30,0.08)', border: '1px solid var(--accent)', borderRadius: 'var(--radius-sm)', padding: '13px 14px', textAlign: 'left', color: 'var(--text)', fontSize: 14 }}>{ex.name}</button>
+                <button onClick={() => onDeleteCustom(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, padding: '0 4px', flexShrink: 0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
         {(EXERCISES[group]||[]).map(ex => <button key={ex} onClick={()=>onSelect(ex,group)} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'13px 14px', textAlign:'left', color:'var(--text)', fontSize:14 }}>{ex}</button>)}

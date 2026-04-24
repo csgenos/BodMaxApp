@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext'
 import {
   getWeightLog, addWeight, getPRs, getSessions,
   getBodyMeasurements, addBodyMeasurement, deleteBodyMeasurement,
-  checkAndUpdatePR,
+  checkAndUpdatePR, getExerciseProgress,
 } from '../lib/db'
 import { calcVolumes, getRank, MUSCLE_GROUPS, EXERCISES, calcSessionVolume } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
@@ -42,6 +42,9 @@ export default function Progress() {
   const [prForm, setPrForm] = useState({ muscleGroup: MUSCLE_GROUPS[0], exercise: '', customExercise: '', weight: '', reps: '' })
   const [prStatus, setPrStatus] = useState(null)
   const [prSaving, setPrSaving] = useState(false)
+  const [selectedPR, setSelectedPR] = useState(null) // exercise name for drill-down
+  const [prHistory, setPrHistory] = useState([])
+  const [prHistoryLoading, setPrHistoryLoading] = useState(false)
   const [error, setError] = useState(null)
   const mounted = useRef(true)
 
@@ -94,6 +97,17 @@ export default function Progress() {
   const handleDeleteMeasurement = async (id) => {
     try { await deleteBodyMeasurement(profile.id, id); setMeasurements(await getBodyMeasurements(profile.id)) }
     catch(e) { if (mounted.current) setError(e.message) }
+  }
+
+  const handleSelectPR = async (pr) => {
+    if (selectedPR === pr.exercise) { setSelectedPR(null); setPrHistory([]); return }
+    setSelectedPR(pr.exercise)
+    setPrHistoryLoading(true)
+    try {
+      const hist = await getExerciseProgress(profile.id, pr.exercise)
+      if (mounted.current) setPrHistory(hist)
+    } catch { if (mounted.current) setPrHistory([]) }
+    if (mounted.current) setPrHistoryLoading(false)
   }
 
   const handleLogPR = async () => {
@@ -359,15 +373,56 @@ export default function Progress() {
                   <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>{g.toUpperCase()}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {gPRs.map(pr => (
-                      <div key={pr.id} className="card" style={{ padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{pr.exercise}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--mono)' }}>{new Date(pr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</div>
+                      <div key={pr.id} className="card" style={{ padding: 14, cursor: 'pointer' }} onClick={() => handleSelectPR(pr)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{pr.exercise}</div>
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--mono)' }}>{new Date(pr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                            </div>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedPR === pr.exercise ? '▲' : '▼'}</span>
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · lbs</div>
-                        </div>
+                        {selectedPR === pr.exercise && (
+                          <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                            {prHistoryLoading ? (
+                              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '12px 0' }}>Loading...</div>
+                            ) : prHistory.length < 2 ? (
+                              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Need 2+ sessions to show trend</div>
+                            ) : (
+                              <>
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 10 }}>EST. 1RM PROGRESSION</div>
+                                <ResponsiveContainer width="100%" height={120}>
+                                  <LineChart data={prHistory.map(h => ({ date: new Date(h.date).toLocaleDateString('en-US',{month:'short',day:'numeric'}), '1RM': h.est1rm, weight: h.weight }))}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                                    <XAxis dataKey="date" tick={{ fill: chartTheme.tick, fontSize: 8 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                                    <YAxis tick={{ fill: chartTheme.tick, fontSize: 8 }} axisLine={false} tickLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
+                                    <Tooltip {...TT} formatter={v => [`${v} lbs`]} />
+                                    <Line type="monotone" dataKey="1RM" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 3 }} />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                  <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>FIRST</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)' }}>{prHistory[0].weight} lbs</div>
+                                  </div>
+                                  <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>BEST</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{Math.max(...prHistory.map(h=>h.weight))} lbs</div>
+                                  </div>
+                                  <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>SESSIONS</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)' }}>{prHistory.length}</div>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

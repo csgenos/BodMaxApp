@@ -72,6 +72,49 @@ export const getLastExerciseSets = async (userId, exerciseName) => {
   return sorted[0]?.sets || null
 }
 
+// ── CUSTOM EXERCISES ─────────────────────────────────────
+export const getCustomExercises = async (userId) => {
+  const { data } = await supabase.from('custom_exercises').select('*')
+    .eq('user_id', userId).order('name')
+  return data || []
+}
+export const saveCustomExercise = async (userId, name, muscleGroup) => {
+  const { error } = await supabase.from('custom_exercises')
+    .upsert({ user_id: userId, name, muscle_group: muscleGroup }, { onConflict: 'user_id,name' })
+  if (error) throw error
+}
+export const deleteCustomExercise = async (userId, id) => {
+  await supabase.from('custom_exercises').delete().eq('id', id).eq('user_id', userId)
+}
+
+// ── EXERCISE PROGRESSION ─────────────────────────────────
+export const getExerciseProgress = async (userId, exerciseName) => {
+  const { data: sessionRows } = await supabase
+    .from('sessions').select('id, date').eq('user_id', userId)
+    .not('completed_at', 'is', null).order('date', { ascending: true }).limit(200)
+  if (!sessionRows?.length) return []
+  const ids = sessionRows.map(s => s.id)
+  const dateMap = Object.fromEntries(sessionRows.map(s => [s.id, s.date]))
+  const { data: exRows } = await supabase
+    .from('exercises').select('id, session_id, sets(weight, reps, is_warmup)')
+    .eq('name', exerciseName).in('session_id', ids)
+  if (!exRows?.length) return []
+  return exRows
+    .map(ex => {
+      const working = (ex.sets || []).filter(s => !s.is_warmup && s.weight && s.reps)
+      if (!working.length) return null
+      const best = working.reduce((a, b) => (+b.weight > +a.weight ? b : a))
+      return {
+        date: dateMap[ex.session_id],
+        weight: +best.weight,
+        reps: +best.reps,
+        est1rm: Math.round(+best.weight * (1 + +best.reps / 30)),
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+}
+
 // ── WORKOUT TEMPLATES ────────────────────────────────────
 export const getTemplates = async (userId) => {
   const { data } = await supabase.from('workout_templates').select('*')
