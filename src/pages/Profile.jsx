@@ -5,6 +5,7 @@ import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUS
 import { calcStreak } from '../lib/streaks'
 import { getAchievements } from '../lib/achievements'
 import { isAudioEnabled, setAudioEnabled } from '../lib/audio'
+import { FlameIcon, ZzzIcon, SunIcon, MoonIcon, VolumeIcon, VolumeMuteIcon } from '../lib/icons'
 
 const ACCENTS = ['#e0161e', '#e07016', '#e0c016', '#16c216', '#1680e0', '#8016e0', '#e016b4', '#f0f0f0']
 const GOALS = ['bulk', 'cut', 'maintain']
@@ -98,7 +99,7 @@ export default function Profile() {
 
         {/* Streak */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18 }}>{streak.current > 0 ? '🔥' : '💤'}</span>
+          <span style={{ color: '#fff' }}>{streak.current > 0 ? <FlameIcon size={18} /> : <ZzzIcon size={18} />}</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
             {streak.current > 0 ? `${streak.current} Day Streak` : 'No active streak'}
           </span>
@@ -253,13 +254,13 @@ export default function Profile() {
                 <div className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="label">APPEARANCE</span>
                   <button onClick={toggleTheme} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: 'var(--text)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {theme === 'dark' ? '☀ LIGHT' : '☾ DARK'}
+                    {theme === 'dark' ? <><SunIcon size={14} /> LIGHT</> : <><MoonIcon size={14} /> DARK</>}
                   </button>
                 </div>
                 <div className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="label">AUDIO CUES</span>
-                  <button onClick={() => { const next = !audioOn; setAudioEnabled(next); setAudioOn(next) }} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: audioOn ? 'var(--accent)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)' }}>
-                    {audioOn ? '🔊 ON' : '🔇 OFF'}
+                  <button onClick={() => { const next = !audioOn; setAudioEnabled(next); setAudioOn(next) }} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 14px', color: audioOn ? 'var(--accent)' : 'var(--text-dim)', fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {audioOn ? <><VolumeIcon size={14} /> ON</> : <><VolumeMuteIcon size={14} /> OFF</>}
                   </button>
                 </div>
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
@@ -268,7 +269,7 @@ export default function Profile() {
                   <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>
                 ) : (
                   <div style={{ background: 'rgba(224,22,30,0.08)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: 16 }}>
-                    <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginBottom: 4 }}>⚠ This will sign you out</div>
+                    <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginBottom: 4 }}>Warning — this will sign you out</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>To fully delete your data, contact support after signing out.</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setShowReset(false)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 10, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>

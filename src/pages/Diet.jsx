@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories } from '../lib/db'
+import { FlameIcon, CameraIcon } from '../lib/icons'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
@@ -107,7 +108,7 @@ export default function Diet() {
         )}
         {cardioCalories > 0 && (
           <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: 'rgba(74,158,181,0.1)', border: '1px solid rgba(74,158,181,0.3)', borderRadius: 8 }}>
-            <span style={{ fontSize: 10, color: '#4a9eb5', fontFamily: 'var(--mono)', letterSpacing: '2px', fontWeight: 700 }}>🔥 CARDIO BURNED</span>
+            <span style={{ fontSize: 10, color: '#4a9eb5', fontFamily: 'var(--mono)', letterSpacing: '2px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><FlameIcon size={12} /> CARDIO BURNED</span>
             <span style={{ fontSize: 12, color: '#4a9eb5', fontFamily: 'var(--mono)', fontWeight: 700 }}>-{cardioCalories} kcal</span>
           </div>
         )}
@@ -155,7 +156,7 @@ export default function Diet() {
               <span style={{ fontSize: 16, fontWeight: 700 }}>Log Meal</span>
               <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
             </div>
-            <div style={{ overflowY: 'auto', padding: '16px 20px 40px', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} autoFocus />
               <div style={{ display: 'flex', gap: 10 }}>
                 <input style={INP} type="number" placeholder="Calories *" value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} />
@@ -172,7 +173,7 @@ export default function Diet() {
                   <button onClick={() => setForm(f => ({ ...f, photo: null }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, fontSize: 16 }}>×</button>
                 </div>
               ) : (
-                <button onClick={() => fileRef.current.click()} style={{ background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-dim)', fontSize: 13 }}>📷 Add Photo (optional)</button>
+                <button onClick={() => fileRef.current.click()} style={{ background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><CameraIcon size={16} /> Add Photo (optional)</button>
               )}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button onClick={() => setShowAdd(false)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 14, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>

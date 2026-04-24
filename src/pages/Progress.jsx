@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
 import {
   getWeightLog, addWeight, getPRs, getSessions,
   getBodyMeasurements, addBodyMeasurement, deleteBodyMeasurement,
@@ -8,6 +7,7 @@ import {
 } from '../lib/db'
 import { calcVolumes, getRank, MUSCLE_GROUPS, EXERCISES, calcSessionVolume } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, RocketIcon, MedalIcon } from '../lib/icons'
 
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, outline: 'none' }
 
@@ -24,8 +24,7 @@ const MEASURE_FIELDS = [
 ]
 
 export default function Progress() {
-  const { profile } = useAuth()
-  const { theme } = useTheme()
+  const { profile, theme } = useAuth()
   const [tab, setTab] = useState('history')
   const [weightLog, setWeightLog] = useState([])
   const [prs, setPRs] = useState([])
@@ -220,14 +219,14 @@ export default function Progress() {
     const topMuscle = Object.entries(muscleCount).sort((a,b)=>b[1]-a[1])[0]
     // Milestones
     const milestones = [
-      { label: '1st session', target: 1, icon: '🎯' },
-      { label: '10 sessions', target: 10, icon: '🔥' },
-      { label: '50 sessions', target: 50, icon: '💪' },
-      { label: '100 sessions', target: 100, icon: '🏆' },
-      { label: '500 sessions', target: 500, icon: '👑' },
-      { label: '100k lbs', target: 100000, icon: '⚡', vol: true },
-      { label: '500k lbs', target: 500000, icon: '🚀', vol: true },
-      { label: '1M lbs', target: 1000000, icon: '🌟', vol: true },
+      { label: '1st session', target: 1, Icon: TargetIcon },
+      { label: '10 sessions', target: 10, Icon: MedalIcon },
+      { label: '50 sessions', target: 50, Icon: DumbbellIcon },
+      { label: '100 sessions', target: 100, Icon: TrophyIcon },
+      { label: '500 sessions', target: 500, Icon: CrownIcon },
+      { label: '100k lbs', target: 100000, Icon: BoltIcon, vol: true },
+      { label: '500k lbs', target: 500000, Icon: RocketIcon, vol: true },
+      { label: '1M lbs', target: 1000000, Icon: StarIcon, vol: true },
     ]
     return { totalVol, totalSets, avgDur, currentStreak, bestStreak, weeklyAvg, topMuscle, milestones }
   }, [sessions])
@@ -629,7 +628,7 @@ export default function Progress() {
                     const earned = val >= m.target
                     return (
                       <div key={m.label} className="card" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, opacity: earned ? 1 : 0.4 }}>
-                        <span style={{ fontSize: 22 }}>{m.icon}</span>
+                        <span style={{ color: earned ? 'var(--accent)' : 'var(--text-muted)' }}><m.Icon size={22} /></span>
                         <div>
                           <div style={{ fontSize: 12, fontWeight: 700, color: earned ? 'var(--text)' : 'var(--text-muted)' }}>{m.label}</div>
                           {earned && <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--mono)', fontWeight: 700 }}>UNLOCKED</div>}

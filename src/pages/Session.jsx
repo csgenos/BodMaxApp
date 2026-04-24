@@ -9,6 +9,7 @@ import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../li
 import { getNotifPermission, requestNotifPermission, showTimerNotification, subscribePush, isPushSubscribed } from '../lib/notifications'
 import { haptic } from '../lib/haptics'
 import { audio } from '../lib/audio'
+import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, MedalIcon, CameraIcon, EditIcon, TrashIcon, ListIcon, BikeIcon } from '../lib/icons'
 
 const REP_RANGE_KEY = 'bm_rep_ranges'
 const getRepRanges = () => { try { return JSON.parse(localStorage.getItem(REP_RANGE_KEY) || '{}') } catch { return {} } }
@@ -320,12 +321,12 @@ export default function Session() {
         if (prs.length > 0) { haptic.pr(); audio.pr() }
         else if (hitSessionMilestone) { haptic.success(); audio.milestone() }
         else { haptic.success(); audio.setLogged() }
-        const MILESTONE_LABELS = { 1: { emoji: '🎯', label: 'First Session!' }, 10: { emoji: '🔥', label: '10 Sessions!' }, 25: { emoji: '💪', label: '25 Sessions!' }, 50: { emoji: '⚡', label: '50 Sessions!' }, 100: { emoji: '🏆', label: '100 Sessions!' }, 250: { emoji: '👑', label: '250 Sessions!' }, 500: { emoji: '🌟', label: '500 Sessions!' } }
+        const MILESTONE_LABELS = { 1: { Icon: TargetIcon, label: 'First Session!' }, 10: { Icon: MedalIcon, label: '10 Sessions!' }, 25: { Icon: DumbbellIcon, label: '25 Sessions!' }, 50: { Icon: BoltIcon, label: '50 Sessions!' }, 100: { Icon: TrophyIcon, label: '100 Sessions!' }, 250: { Icon: CrownIcon, label: '250 Sessions!' }, 500: { Icon: StarIcon, label: '500 Sessions!' } }
         await load()
         setNewPRs(prs)
         setSummary(sess)
         setActive(null)
-        setMilestone(hitSessionMilestone ? MILESTONE_LABELS[newCount] : prs.length > 0 ? { emoji: '🔥', label: `New PR — ${prs[0]}!` } : null)
+        setMilestone(hitSessionMilestone ? MILESTONE_LABELS[newCount] : prs.length > 0 ? { Icon: FlameIcon, label: `New PR — ${prs[0]}!` } : null)
         setView('summary')
       }
     } catch(e) { setError('Save failed: ' + e.message) }
@@ -340,8 +341,8 @@ export default function Session() {
   // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
     <div className="page" style={{ padding:'var(--page-top) 20px 24px', textAlign:'center' }}>
-      {milestone && <MilestoneCelebration emoji={milestone.emoji} label={milestone.label} onDone={() => setMilestone(null)} />}
-      <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
+      {milestone && <MilestoneCelebration Icon={milestone.Icon} label={milestone.label} onDone={() => setMilestone(null)} />}
+      <div style={{ marginBottom:16, color:'var(--accent)' }}><TrophyIcon size={48} /></div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:20 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
       <div style={{ display:'flex', gap:10, marginBottom:20 }}>
@@ -351,7 +352,7 @@ export default function Session() {
 
       {newPRs.length > 0 && (
         <div style={{ background: 'var(--accent-low)', border: '1px solid var(--accent)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>🔥 NEW PRs</div>
+          <div className="label" style={{ color: 'var(--accent)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><FlameIcon size={10} /> NEW PRs</div>
           {newPRs.map(pr => <div key={pr} style={{ fontWeight: 600, marginBottom: 4 }}>{pr}</div>)}
         </div>
       )}
@@ -380,7 +381,7 @@ export default function Session() {
           {(summary.cardio || []).map((c, i) => (
             <div key={i} style={{ marginTop: 8 }}>
               <div style={{ fontSize: 11, color: '#4a9eb5', fontFamily: 'var(--mono)' }}>
-                🚴 {c.type} · {c.duration} min{c.calories ? ` · ${c.calories} kcal` : ''}
+                <BikeIcon size={10} /> {c.type} · {c.duration} min{c.calories ? ` · ${c.calories} kcal` : ''}
               </div>
             </div>
           ))}
@@ -553,7 +554,7 @@ export default function Session() {
             <button onClick={() => setActive(s => ({ ...s, photo: null }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, fontSize: 16, cursor: 'pointer' }}>×</button>
           </div>
         ) : (
-          <button onClick={() => photoRef.current.click()} style={{ background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>📷 ADD SESSION PHOTO</button>
+          <button onClick={() => photoRef.current.click()} style={{ background: 'transparent', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, color: 'var(--text-muted)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}><CameraIcon size={14} /> ADD SESSION PHOTO</button>
         )}
 
         <button onClick={()=>setShowDiscard(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>DISCARD SESSION</button>
@@ -668,11 +669,11 @@ export default function Session() {
         <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:14, fontWeight:600 }}>Template</button>
       </div>
       <button onClick={() => setView('split')} style={{ width:'100%', background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, marginBottom:20, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-        <span>📋</span> Weekly Split
+        <ListIcon size={16} /> Weekly Split
       </button>
 
       {sessions.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-dim)', fontSize: 14 }}>No sessions yet — start lifting 💪</div>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-dim)', fontSize: 14 }}>No sessions yet — start lifting</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {sessions.map(s => {
@@ -692,8 +693,8 @@ export default function Session() {
                     </div>
                   </div>
                   <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, marginLeft:8 }}>
-                    <button onClick={() => editSession(s)} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:18, padding:'4px' }}>✏️</button>
-                    <button onClick={() => setConfirmDelete(deleting ? null : s.id)} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:18, padding:'4px' }}>🗑️</button>
+                    <button onClick={() => editSession(s)} style={{ background:'none', border:'none', color:'var(--text-dim)', padding:'4px', display:'flex' }}><EditIcon size={16} /></button>
+                    <button onClick={() => setConfirmDelete(deleting ? null : s.id)} style={{ background:'none', border:'none', color:'var(--accent)', padding:'4px', display:'flex' }}><TrashIcon size={16} /></button>
                   </div>
                 </div>
                 {deleting && (
@@ -936,7 +937,7 @@ function CardioModal({ onAdd, onClose }) {
   )
 }
 
-function MilestoneCelebration({ emoji, label, onDone }) {
+function MilestoneCelebration({ Icon, label, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t) }, [])
   const particles = Array.from({ length: 24 }, (_, i) => {
     const angle = (i / 24) * 360
@@ -961,7 +962,7 @@ function MilestoneCelebration({ emoji, label, onDone }) {
         )
       })}
       <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <div style={{ fontSize: 80, lineHeight: 1, marginBottom: 16 }}>{emoji}</div>
+        <div style={{ lineHeight: 1, marginBottom: 16, color: 'var(--accent)' }}>{Icon && <Icon size={80} />}</div>
         <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>{label}</div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>tap to dismiss</div>
       </div>
