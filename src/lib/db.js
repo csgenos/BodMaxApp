@@ -438,3 +438,21 @@ export const getLeaderboard = async (userId, currentProfile) => {
     }
   }).sort((a, b) => b.weeklyCount - a.weeklyCount)
 }
+
+// ── SAVED MEALS ──────────────────────────────────────────
+export const getSavedMeals = async (userId) => {
+  const { data, error } = await supabase.from('saved_meals').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+export const saveMeal = async (userId, meal) => {
+  const { data, error } = await supabase.from('saved_meals')
+    .insert({ user_id: userId, name: meal.name, calories: +meal.calories || 0, protein: +meal.protein || 0, carbs: +meal.carbs || 0, fat: +meal.fat || 0 })
+    .select().single()
+  if (error) throw error
+  return data
+}
+export const deleteSavedMeal = async (userId, id) => {
+  const { error } = await supabase.from('saved_meals').delete().eq('id', id).eq('user_id', userId)
+  if (error) throw error
+}
