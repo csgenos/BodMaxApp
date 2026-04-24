@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getSessions, getPRs, updateProfile } from '../lib/db'
+import { getSessions, getPRs, updateProfile, addFeedback } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUSCLE_GROUPS } from '../lib/ranks'
 import { calcStreak } from '../lib/streaks'
 import { getAchievements } from '../lib/achievements'
@@ -22,6 +22,7 @@ export default function Profile() {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [showReset, setShowReset] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const [error, setError] = useState(null)
   const [audioOn, setAudioOn] = useState(() => isAudioEnabled())
   const mounted = useRef(true)
@@ -278,6 +279,7 @@ export default function Profile() {
                   </button>
                 </div>
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
+                <button onClick={() => setShowFeedback(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>SEND FEEDBACK</button>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (
                   <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>
@@ -293,6 +295,62 @@ export default function Profile() {
                 )}
               </div>
             )}
+          </div>
+        )}
+      </div>
+      {showFeedback && <FeedbackModal userId={profile?.id} onClose={() => setShowFeedback(false)} />}
+    </div>
+  )
+}
+
+function FeedbackModal({ userId, onClose }) {
+  const [message, setMessage] = useState('')
+  const [rating, setRating] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleSubmit = async () => {
+    if (!message.trim() || saving) return
+    setSaving(true); setError(null)
+    try {
+      await addFeedback(userId, message.trim(), rating || null)
+      setDone(true)
+      setTimeout(onClose, 1800)
+    } catch (e) { setError(e.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', width: '100%', padding: '24px 20px 40px' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>Send Feedback</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
+        </div>
+        {done ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', fontSize: 15, color: '#22c55e', fontWeight: 700 }}>Thanks — feedback received!</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 4 }}>
+              {[1,2,3,4,5].map(s => (
+                <button key={s} onClick={() => setRating(s === rating ? 0 : s)} style={{ background: 'none', border: 'none', fontSize: 28, opacity: s <= rating ? 1 : 0.3, transition: 'opacity 0.15s' }}>★</button>
+              ))}
+            </div>
+            <textarea
+              style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, resize: 'none', height: 110, fontFamily: 'inherit' }}
+              placeholder="What's working? What's not? What would you love to see?"
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              autoFocus
+            />
+            {error && <div style={{ fontSize: 12, color: 'var(--accent)' }}>{error}</div>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={onClose} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 14, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>
+              <button onClick={handleSubmit} disabled={saving || !message.trim()} style={{ flex: 2, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, color: '#fff', fontWeight: 700, fontSize: 14, opacity: (!message.trim() || saving) ? 0.6 : 1 }}>
+                {saving ? 'Sending...' : 'Send Feedback'}
+              </button>
+            </div>
           </div>
         )}
       </div>

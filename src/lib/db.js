@@ -456,3 +456,8 @@ export const deleteSavedMeal = async (userId, id) => {
   const { error } = await supabase.from('saved_meals').delete().eq('id', id).eq('user_id', userId)
   if (error) throw error
 }
+
+export const addFeedback = async (userId, message, rating) => {
+  const { error } = await supabase.from('feedback').insert({ user_id: userId, message, rating: rating || null })
+  if (error) throw error
+}
