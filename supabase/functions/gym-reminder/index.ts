@@ -38,8 +38,6 @@ serve(async (req) => {
     }
 
     const now = new Date()
-    const todayDayIndex = now.getDay()          // 0=Sun … 6=Sat (UTC)
-    const currentHour   = now.getUTCHours()     // 0-23 UTC
 
     // Fetch all users who have workout_split with notifications enabled
     const { data: profiles, error: profErr } = await supabase
@@ -54,12 +52,37 @@ serve(async (req) => {
       if (!split?.notifyEnabled) return false
       if (!split?.notifyTime) return false
 
-      // Check if the notification hour matches current UTC hour
-      const [hh] = (split.notifyTime as string).split(':').map(Number)
-      if (hh !== currentHour) return false
+      // Resolve the user's timezone — fall back to UTC if unknown
+      const tz = (split.timezone as string) || 'UTC'
 
-      // Check if today is a workout day
-      const todayMuscles = split.days?.[todayDayIndex]
+      // Derive the user's local hour and day-of-week using Intl APIs
+      let localHour: number
+      let localDayIndex: number
+      try {
+        // formatToParts gives us named fields without string parsing
+        const parts = Object.fromEntries(
+          new Intl.DateTimeFormat('en-US', {
+            timeZone: tz,
+            hour: '2-digit',
+            hour12: false,
+            weekday: 'short',  // "Sun" | "Mon" | …
+          }).formatToParts(now).map(p => [p.type, p.value])
+        )
+        localHour = parseInt(parts.hour, 10) % 24  // guard against "24" midnight edge case
+        const DAY_MAP: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+        localDayIndex = DAY_MAP[parts.weekday] ?? now.getUTCDay()
+      } catch {
+        // Unknown/invalid timezone — fall back to UTC
+        localHour = now.getUTCHours()
+        localDayIndex = now.getUTCDay()
+      }
+
+      // Check if the notification hour matches the user's local time
+      const [hh] = (split.notifyTime as string).split(':').map(Number)
+      if (hh !== localHour) return false
+
+      // Check if today (in the user's timezone) is a workout day
+      const todayMuscles = split.days?.[localDayIndex]
       return todayMuscles !== null && todayMuscles !== undefined
     })
 
@@ -86,7 +109,17 @@ serve(async (req) => {
 
     const results = await Promise.allSettled(subs.map(sub => {
       const p = profileMap.get(sub.user_id) as any
-      const muscles: string[] = p?.workout_split?.days?.[todayDayIndex] || []
+      const tz = (p?.workout_split?.timezone as string) || 'UTC'
+      let localDay = now.getUTCDay()
+      try {
+        const parts = Object.fromEntries(
+          new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' })
+            .formatToParts(now).map(x => [x.type, x.value])
+        )
+        const DAY_MAP: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+        localDay = DAY_MAP[parts.weekday] ?? localDay
+      } catch { /* keep UTC fallback */ }
+      const muscles: string[] = p?.workout_split?.days?.[localDay] || []
       const muscleStr = muscles.length ? muscles.join(' & ') : 'your workout'
       const firstName = (p?.name || 'there').split(' ')[0]
 

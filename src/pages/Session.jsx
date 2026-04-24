@@ -773,7 +773,8 @@ function WorkoutSplitView({ profile, setProfile, onSave }) {
   const handleSave = async () => {
     setSaving(true); setError(null)
     try {
-      await onSave({ days, notifyEnabled, notifyTime })
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      await onSave({ days, notifyEnabled, notifyTime, timezone })
       setSaveOk(true)
       setTimeout(() => setSaveOk(false), 2200)
     } catch (e) {
