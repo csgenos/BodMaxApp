@@ -38,6 +38,9 @@ const loadActive = () => {
 
 export default function Session() {
   const { profile, setProfile } = useAuth()
+  const unit = profile?.unit || 'lbs'
+  const distUnit = unit === 'kg' ? 'km' : 'mi'
+  const weightKg = profile?.weight ? (unit === 'kg' ? +profile.weight : Math.round(+profile.weight / 2.205)) : 70
   // Restore any in-progress session synchronously before first paint so we
   // never render the list view and flicker into 'active'.
   const [active, setActive] = useState(loadActive)
@@ -502,7 +505,7 @@ export default function Session() {
           <div key={c.id} className="card" style={{ padding: 14, borderColor: '#1a3a4a' }}>
             <div style={{ fontSize: 9, color: '#4a9eb5', letterSpacing: '2px', fontFamily: 'var(--mono)', marginBottom: 4 }}>CARDIO</div>
             <div style={{ fontWeight: 600 }}>{c.type}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{c.duration} min{c.distance ? ` · ${c.distance} mi` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{c.duration} min{c.distance ? ` · ${c.distance} ${distUnit}` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}</div>
           </div>
         ))}
 
@@ -562,7 +565,7 @@ export default function Session() {
       </div>
 
       {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} customExercises={customExercises} onDeleteCustom={handleDeleteCustomExercise} />}
-      {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} />}
+      {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} distUnit={distUnit} weightKg={weightKg} />}
       {oneRMEx && <OneRMModal ex={oneRMEx} onClose={()=>setOneRMEx(null)} />}
       {plateEx && <PlateModal name={plateEx.name} lastWeight={plateEx.lastWeight} unit={profile?.unit || 'lbs'} onClose={()=>setPlateEx(null)} />}
       {showDiscard && (
@@ -917,7 +920,7 @@ function TemplatesModal({ templates, sessions, onPickTemplate, onPickSession, on
   )
 }
 
-function CardioModal({ onAdd, onClose }) {
+function CardioModal({ onAdd, onClose, distUnit = 'mi', weightKg = 70 }) {
   const [type, setType] = useState(CARDIO_TYPES[0])
   const [duration, setDuration] = useState('')
   const [distance, setDistance] = useState('')
@@ -930,15 +933,15 @@ function CardioModal({ onAdd, onClose }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
         <input style={INP} type="number" placeholder="Duration (minutes) *" value={duration} onChange={e => setDuration(e.target.value)} />
-        <input style={INP} type="number" placeholder="Distance (miles) — optional" value={distance} onChange={e => setDistance(e.target.value)} />
+        <input style={INP} type="number" placeholder={`Distance (${distUnit}) — optional`} value={distance} onChange={e => setDistance(e.target.value)} />
         <input style={INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e => setCalories(e.target.value)} />
         {!calories && type && duration && (
           <button
             type="button"
-            onClick={() => setCalories(String(estimateCalories(type, +duration)))}
+            onClick={() => setCalories(String(estimateCalories(type, +duration, weightKg)))}
             style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, padding: '4px 0', textAlign: 'left', fontWeight: 600 }}
           >
-            Use est. {estimateCalories(type, +duration)} kcal (MET · 70kg)
+            Use est. {estimateCalories(type, +duration, weightKg)} kcal (MET · {weightKg}kg)
           </button>
         )}
       </div>

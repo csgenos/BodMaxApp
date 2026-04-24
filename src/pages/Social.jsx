@@ -9,6 +9,8 @@ const isActiveToday = (lastActive) => lastActive && lastActive.split('T')[0] ===
 
 export default function Social() {
   const { profile, socialCounts, updateSocialCounts, markFeedSeen, markRequestsSeen } = useAuth()
+  const unit = profile?.unit || 'lbs'
+  const distUnit = unit === 'kg' ? 'km' : 'mi'
   const [tab, setTab] = useState('feed')
   const [feed, setFeed] = useState([])
   const [friends, setFriends] = useState([])
@@ -171,7 +173,7 @@ export default function Social() {
             <div style={{ fontSize:18, fontWeight:900, color:rank.color, fontFamily:'var(--mono)' }}>{rank.name}</div>
           </div>
           <div style={{ textAlign:'right', fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-            <div>{Math.round(totalVol).toLocaleString()} lbs</div>
+            <div>{Math.round(totalVol).toLocaleString()} {unit}</div>
           </div>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:24 }}>
@@ -196,7 +198,7 @@ export default function Social() {
                       <span style={{ fontWeight:600, fontSize:14 }}>{pr.exercise}</span>
                       <div style={{ textAlign:'right' }}>
                         <div style={{ fontSize:20, fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>{pr.weight}</div>
-                        <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                        <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{pr.reps} reps · {unit}</div>
                       </div>
                     </div>
                   ))}
@@ -265,7 +267,7 @@ export default function Social() {
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>{groups.join(', ') || 'Workout'}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 12 }}>
-                  {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
+                  {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} {unit}{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleLike(s.id) }}
@@ -378,7 +380,7 @@ export default function Social() {
                     <div style={{ fontSize: 20, fontWeight: 800, color: isPodium ? '#fff' : 'var(--text)' }}>
                       {Math.round((competeMode === 'weekly' ? entry.weeklyVolume : entry.monthlyVolume) || 0).toLocaleString()}
                     </div>
-                    <div style={{ fontSize: 10, color: isPodium ? 'rgba(255,255,255,0.6)' : 'var(--text-dim)' }}>lbs</div>
+                    <div style={{ fontSize: 10, color: isPodium ? 'rgba(255,255,255,0.6)' : 'var(--text-dim)' }}>{unit}</div>
                   </div>
                 </div>
               )
@@ -387,7 +389,7 @@ export default function Social() {
         )}
       </div>
     </div>
-    {selectedSession && <SessionDetailModal session={selectedSession} onClose={() => setSelectedSession(null)} />}
+    {selectedSession && <SessionDetailModal session={selectedSession} unit={unit} distUnit={distUnit} onClose={() => setSelectedSession(null)} />}
   </>
 )
 }
@@ -423,12 +425,12 @@ function Modal({ children, onClose, title }) {
   )
 }
 
-function SessionDetailModal({ session, onClose }) {
+function SessionDetailModal({ session, unit = 'lbs', distUnit = 'mi', onClose }) {
   const vol = calcSessionVolume(session)
   const groups = [...new Set((session.exercises || []).map(e => e.muscle_group || e.muscleGroup))].filter(Boolean)
   const user = session.profiles
   const stats = [
-    ['VOL', `${Math.round(vol).toLocaleString()} lbs`],
+    ['VOL', `${Math.round(vol).toLocaleString()} ${unit}`],
     ['EXER', (session.exercises || []).length],
     session.duration ? ['TIME', `${Math.floor(session.duration / 60)}m`] : null,
   ].filter(Boolean)
@@ -477,7 +479,7 @@ function SessionDetailModal({ session, onClose }) {
             <div key={i} style={{ background: 'rgba(74,158,181,0.1)', border: '1px solid rgba(74,158,181,0.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 6 }}>
               <div style={{ fontSize: 12, color: '#4a9eb5', fontWeight: 600 }}>{c.type}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                {c.duration} min{c.distance ? ` · ${c.distance} mi` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}
+                {c.duration} min{c.distance ? ` · ${c.distance} ${distUnit}` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}
               </div>
             </div>
           ))}
