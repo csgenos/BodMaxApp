@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getDietByDate, addDietEntry, deleteDietEntry } from '../lib/db'
+import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories } from '../lib/db'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
@@ -12,6 +12,7 @@ export default function Diet() {
   const [form, setForm] = useState({ meal: '', calories: '', protein: '', carbs: '', fat: '', photo: null })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [cardioCalories, setCardioCalories] = useState(0)
   const fileRef = useRef()
   const mounted = useRef(true)
 
@@ -29,7 +30,11 @@ export default function Diet() {
     }
   }
 
-  useEffect(() => { if (profile) load() }, [profile?.id])
+  useEffect(() => {
+    if (!profile) return
+    load()
+    getTodayCardioCalories(profile.id).then(c => { if (mounted.current) setCardioCalories(c) }).catch(() => {})
+  }, [profile?.id])
 
   const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
   const totalProt = entries.reduce((s, e) => s + (e.protein || 0), 0)
@@ -81,31 +86,31 @@ export default function Diet() {
   return (
     <div className="page" style={{ paddingBottom: 24 }}>
       {/* Header */}
-      <div style={{ padding: 'var(--page-top) 20px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ fontSize: 28, fontWeight: 800 }}>Nutrition</h2>
-        <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 100, padding: '10px 18px', color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-          + Log Meal
-        </button>
-      </div>
-
-      {/* Macro progress card */}
-      <div style={{ padding: '0 20px 20px' }}>
-        <div className="card" style={{ padding: '16px 18px' }}>
-          <MacroBar label="Calories" current={totalCal.toLocaleString()} target={(profile?.target_calories || 0).toLocaleString()} pct={calPct} color="var(--accent)" />
-          <div style={{ marginTop: 14 }}>
-            <MacroBar label="Protein" current={`${totalProt}g`} target={`${profile?.target_protein || 0}g`} pct={protPct} color="#4a9eb5" />
-          </div>
-          {(profile?.target_carbs || totalCarbs > 0) && (
-            <div style={{ marginTop: 14 }}>
-              <MacroBar label="Carbs" current={`${totalCarbs}g`} target={`${profile?.target_carbs || 0}g`} pct={carbPct} color="#c88a2e" />
-            </div>
-          )}
-          {(profile?.target_fat || totalFat > 0) && (
-            <div style={{ marginTop: 14 }}>
-              <MacroBar label="Fat" current={`${totalFat}g`} target={`${profile?.target_fat || 0}g`} pct={fatPct} color="#9a5ad4" />
-            </div>
-          )}
+      <div style={{ padding: 'var(--page-top) 20px 16px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 28, fontWeight: 800 }}>Nutrition</h2>
+          <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 100, padding: '10px 18px', color: '#fff', fontWeight: 700, fontSize: 14 }}>+ Log Meal</button>
         </div>
+        <MacroBar label="CALORIES" current={totalCal.toLocaleString()} target={(profile?.target_calories || 0).toLocaleString()} pct={calPct} color="var(--accent)" />
+        <div style={{ marginTop: 10 }}>
+          <MacroBar label="PROTEIN" current={`${totalProt}g`} target={`${profile?.target_protein || 0}g`} pct={protPct} color="#4a9eb5" />
+        </div>
+        {(profile?.target_carbs || totalCarbs > 0) && (
+          <div style={{ marginTop: 10 }}>
+            <MacroBar label="CARBS" current={`${totalCarbs}g`} target={`${profile?.target_carbs || 0}g`} pct={carbPct} color="#c88a2e" />
+          </div>
+        )}
+        {(profile?.target_fat || totalFat > 0) && (
+          <div style={{ marginTop: 10 }}>
+            <MacroBar label="FAT" current={`${totalFat}g`} target={`${profile?.target_fat || 0}g`} pct={fatPct} color="#9a5ad4" />
+          </div>
+        )}
+        {cardioCalories > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: 'rgba(74,158,181,0.1)', border: '1px solid rgba(74,158,181,0.3)', borderRadius: 8 }}>
+            <span style={{ fontSize: 10, color: '#4a9eb5', fontFamily: 'var(--mono)', letterSpacing: '2px', fontWeight: 700 }}>🔥 CARDIO BURNED</span>
+            <span style={{ fontSize: 12, color: '#4a9eb5', fontFamily: 'var(--mono)', fontWeight: 700 }}>-{cardioCalories} kcal</span>
+          </div>
+        )}
       </div>
 
       {/* Meals list */}

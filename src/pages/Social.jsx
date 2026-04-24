@@ -22,6 +22,7 @@ export default function Social() {
   const [likes, setLikes] = useState({})
   const [leaderboard, setLeaderboard] = useState([])
   const [competeMode, setCompeteMode] = useState('weekly')
+  const [selectedSession, setSelectedSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [leaderLoading, setLeaderLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -157,6 +158,11 @@ export default function Social() {
           <div>
             <div style={{ fontWeight:700, fontSize:20 }}>{selectedFriend.name}</div>
             <div style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>@{selectedFriend.username}</div>
+            {selectedFriend.created_at && (
+              <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:3 }}>
+                Joined {new Date(selectedFriend.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ background:'var(--bg3)', border:`1px solid ${rank.color}`, borderRadius:'var(--radius)', padding:'12px 16px', marginBottom:16, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -208,6 +214,7 @@ export default function Social() {
   const activeToday = friends.filter(f => isActiveToday(f.last_active))
 
   return (
+    <>
     <div className="page" style={{ paddingBottom: 24 }}>
       <div style={{ padding: 'var(--page-top) 20px 16px' }}>
         <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Social</h2>
@@ -247,7 +254,7 @@ export default function Social() {
             const likedByMe = likes[s.id]?.has(profile.id) || false
             const likeCount = likes[s.id]?.size || 0
             return (
-              <div key={s.id} className="card" style={{ padding: 16, marginBottom: 8 }}>
+              <div key={s.id} className="card" style={{ padding: 16, marginBottom: 8, cursor: 'pointer' }} onClick={() => setSelectedSession(s)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <Avatar name={user?.name || '?'} size={32} />
                   <div>
@@ -261,7 +268,7 @@ export default function Social() {
                   {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
                 </div>
                 <button
-                  onClick={() => handleLike(s.id)}
+                  onClick={(e) => { e.stopPropagation(); handleLike(s.id) }}
                   style={{ background: 'none', border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: 6, color: likedByMe ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer' }}
                 >
                   <span style={{ fontSize: 18, lineHeight: 1, display: 'inline-block', transform: likedByMe ? 'scale(1.2)' : 'scale(1)', transition: 'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
@@ -380,7 +387,9 @@ export default function Social() {
         )}
       </div>
     </div>
-  )
+    {selectedSession && <SessionDetailModal session={selectedSession} onClose={() => setSelectedSession(null)} />}
+  </>
+)
 }
 
 function Avatar({ name, size = 40, light = false }) {
@@ -397,5 +406,83 @@ function Loader() {
       <div style={{ width: 24, height: 24, border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
+  )
+}
+
+function Modal({ children, onClose, title }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '82vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <span className="label">{title}</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function SessionDetailModal({ session, onClose }) {
+  const vol = calcSessionVolume(session)
+  const groups = [...new Set((session.exercises || []).map(e => e.muscle_group || e.muscleGroup))].filter(Boolean)
+  const user = session.profiles
+  const stats = [
+    ['VOL', `${Math.round(vol).toLocaleString()} lbs`],
+    ['EXER', (session.exercises || []).length],
+    session.duration ? ['TIME', `${Math.floor(session.duration / 60)}m`] : null,
+  ].filter(Boolean)
+
+  return (
+    <Modal onClose={onClose} title={groups.join(', ').toUpperCase() || 'WORKOUT'}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <Avatar name={user?.name || '?'} size={28} />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>{user?.name}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+            @{user?.username} · {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {stats.map(([l, v]) => (
+          <div key={l} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 4px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', letterSpacing: '1px' }}>{l}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', marginTop: 2 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {session.photo_url && (
+        <img src={session.photo_url} alt="" style={{ width: '100%', height: 150, objectFit: 'cover', borderRadius: 10, marginBottom: 14 }} />
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {(session.exercises || []).map(ex => (
+          <div key={ex.id || ex.name} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{ex.name}</div>
+            <div style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: '2px', fontFamily: 'var(--mono)', marginTop: 1 }}>{ex.muscle_group || ex.muscleGroup}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 4 }}>
+              {(ex.sets || []).map((s, i) => `${i + 1}: ${s.weight}×${s.reps}`).join(' · ')}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {(session.cardio || []).length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div className="label" style={{ marginBottom: 8 }}>CARDIO</div>
+          {(session.cardio || []).map((c, i) => (
+            <div key={i} style={{ background: 'rgba(74,158,181,0.1)', border: '1px solid rgba(74,158,181,0.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 6 }}>
+              <div style={{ fontSize: 12, color: '#4a9eb5', fontWeight: 600 }}>{c.type}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                {c.duration} min{c.distance ? ` · ${c.distance} mi` : ''}{c.calories ? ` · ${c.calories} kcal` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
   )
 }
