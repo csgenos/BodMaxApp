@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: { injectionPoint: 'self.__WB_MANIFEST' },
       manifest: {
         name: 'BodMax',
         short_name: 'BodMax',

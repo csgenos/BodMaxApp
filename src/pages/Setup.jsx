@@ -12,6 +12,8 @@ export default function Setup() {
   const [goal, setGoal] = useState('bulk')
   const [calories, setCalories] = useState('2800')
   const [protein, setProtein] = useState('180')
+  const [carbs, setCarbs] = useState('300')
+  const [fat, setFat] = useState('80')
   const [weight, setWeight] = useState('')
   const [unit, setUnit] = useState('lbs')
   const [accent, setAccent] = useState('#e0161e')
@@ -22,7 +24,18 @@ export default function Setup() {
     if (!name.trim() || !username.trim()) return
     setLoading(true); setErr(null)
     try {
-      const p = await createProfile(user.id, { name: name.trim(), username: username.trim().toLowerCase(), goal, target_calories: +calories, target_protein: +protein, weight: weight ? +weight : null, unit, accent_color: accent })
+      const p = await createProfile(user.id, {
+        name: name.trim(),
+        username: username.trim().toLowerCase(),
+        goal,
+        target_calories: +calories,
+        target_protein: +protein,
+        target_carbs: carbs ? +carbs : null,
+        target_fat: fat ? +fat : null,
+        weight: weight ? +weight : null,
+        unit,
+        accent_color: accent,
+      })
       setProfile(p)
     } catch(e) { setErr(e.message) }
     setLoading(false)
@@ -50,6 +63,11 @@ export default function Setup() {
         <div style={{ display:'flex', gap:12 }}>
           <Field label="DAILY CALORIES" style={{ flex:1 }}><input style={INP} type="number" value={calories} onChange={e => setCalories(e.target.value)} /></Field>
           <Field label="PROTEIN (g)" style={{ flex:1 }}><input style={INP} type="number" value={protein} onChange={e => setProtein(e.target.value)} /></Field>
+        </div>
+
+        <div style={{ display:'flex', gap:12 }}>
+          <Field label="CARBS (g)" style={{ flex:1 }}><input style={INP} type="number" value={carbs} onChange={e => setCarbs(e.target.value)} /></Field>
+          <Field label="FAT (g)" style={{ flex:1 }}><input style={INP} type="number" value={fat} onChange={e => setFat(e.target.value)} /></Field>
         </div>
 
         <Field label="BODYWEIGHT (optional)">
