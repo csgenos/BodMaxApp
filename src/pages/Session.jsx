@@ -585,8 +585,10 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose }) {
   }
   return (
     <Modal onClose={onClose} title="ADD EXERCISE">
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-        {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: group === g ? 'var(--accent)' : 'var(--bg3)', color: group === g ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{g}</button>)}
+      <div style={{ position:'sticky', top:0, background:'var(--bg2)', zIndex:1, marginLeft:-20, marginRight:-20, paddingLeft:20, paddingRight:20, paddingTop:4, paddingBottom:12, marginTop:-16, marginBottom:2 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: group === g ? 'var(--accent)' : 'var(--bg3)', color: group === g ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{g}</button>)}
+        </div>
       </div>
       {showCustom ? (
         <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
@@ -694,12 +696,16 @@ function CardioModal({ onAdd, onClose }) {
 function Modal({ children, onClose, title }) {
   return (
     <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
-      <div className="modal-sheet" style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="modal-sheet" style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        {/* Fixed header — never scrolls away */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 20px 16px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           <span className="label">{title}</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
         </div>
-        {children}
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', padding: '16px 20px 40px', flex: 1 }}>
+          {children}
+        </div>
       </div>
     </div>
   )
