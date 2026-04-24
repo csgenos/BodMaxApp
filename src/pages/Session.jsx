@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
   getSessions, saveSession, updateSession, deleteSession, checkAndUpdatePR, getLastExerciseSets,
-  getTemplates, saveTemplate, deleteTemplate,
+  getTemplates, saveTemplate, deleteTemplate, updateProfile,
 } from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
-import { getNotifPermission, requestNotifPermission, showTimerNotification } from '../lib/notifications'
+import { getNotifPermission, requestNotifPermission, showTimerNotification, subscribePush, isPushSubscribed } from '../lib/notifications'
 
 const uid = () => Math.random().toString(36).slice(2)
 const ACTIVE_KEY = 'bm_active_session'
@@ -20,7 +20,7 @@ const loadActive = () => {
 }
 
 export default function Session() {
-  const { profile } = useAuth()
+  const { profile, setProfile } = useAuth()
   // Restore any in-progress session synchronously before first paint so we
   // never render the list view and flicker into 'active'.
   const [active, setActive] = useState(loadActive)
@@ -264,7 +264,7 @@ export default function Session() {
 
   // ── SUMMARY ───────────────────────────────────────────────
   if (view === 'summary' && summary) return (
-    <div className="page" style={{ padding:'60px 20px', textAlign:'center' }}>
+    <div className="page" style={{ padding:'var(--page-top) 20px 24px', textAlign:'center' }}>
       <div style={{ fontSize:48, marginBottom:16 }}>🏁</div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:28 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
@@ -308,7 +308,7 @@ export default function Session() {
   // ── ACTIVE SESSION ────────────────────────────────────────
   if (view === 'active' && active) return (
     <div className="page" style={{ paddingBottom:24 }}>
-      <div style={{ padding:'52px 20px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div style={{ padding:'var(--page-top) 20px 16px', background:'var(--bg2)', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
           <div className="label">{isEditing ? 'EDIT SESSION' : 'SESSION IN PROGRESS'}</div>
           {isEditing
@@ -425,6 +425,29 @@ export default function Session() {
     </div>
   )
 
+  const handleSaveSplit = async (splitData) => {
+    const updated = await updateProfile(profile.id, { workout_split: splitData })
+    setProfile(updated)
+  }
+
+  // ── SPLIT VIEW ────────────────────────────────────────────
+  if (view === 'split') return (
+    <div className="page" style={{ padding: 'var(--page-top) 20px 32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 26, fontWeight: 800 }}>My Split</h2>
+          <p style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 2 }}>Set your weekly workout schedule</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <TabBtn active={false} onClick={() => setView('list')}>LIST</TabBtn>
+          <TabBtn active={false} onClick={() => setView('calendar')}>CAL</TabBtn>
+          <TabBtn active={true} onClick={() => setView('split')}>SPLIT</TabBtn>
+        </div>
+      </div>
+      <WorkoutSplitView profile={profile} setProfile={setProfile} onSave={handleSaveSplit} />
+    </div>
+  )
+
   // ── CALENDAR VIEW ─────────────────────────────────────────
   if (view === 'calendar') {
     const sessionDates = new Set(sessions.map(s => s.date?.split('T')[0]))
@@ -437,12 +460,13 @@ export default function Session() {
     const monthStr = calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
     return (
-      <div className="page" style={{ padding: '52px 20px 24px' }}>
+      <div className="page" style={{ padding: 'var(--page-top) 20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <h2 style={{ fontSize: 24, fontWeight: 800 }}>Sessions</h2>
           <div style={{ display: 'flex', gap: 8 }}>
             <TabBtn active={false} onClick={() => setView('list')}>LIST</TabBtn>
             <TabBtn active={true} onClick={() => setView('calendar')}>CAL</TabBtn>
+            <TabBtn active={false} onClick={() => setView('split')}>SPLIT</TabBtn>
           </div>
         </div>
         <div style={{ display:'flex', gap:8, marginBottom:24 }}>
@@ -479,13 +503,14 @@ export default function Session() {
 
   // ── LIST VIEW ─────────────────────────────────────────────
   return (
-    <div className="page" style={{ padding: '52px 20px 24px' }}>
+    <div className="page" style={{ padding: 'var(--page-top) 20px 24px' }}>
       {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <h2 style={{ fontSize: 26, fontWeight: 800 }}>Sessions</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           <TabBtn active={true} onClick={() => setView('list')}>LIST</TabBtn>
           <TabBtn active={false} onClick={() => setView('calendar')}>CAL</TabBtn>
+          <TabBtn active={false} onClick={() => setView('split')}>SPLIT</TabBtn>
         </div>
       </div>
       <p style={{ color:'var(--text-dim)', marginBottom:24, fontSize:14 }}>Log workouts, track your lifts</p>
@@ -676,6 +701,218 @@ function Modal({ children, onClose, title }) {
         </div>
         {children}
       </div>
+    </div>
+  )
+}
+
+// ── WORKOUT SPLIT EDITOR ──────────────────────────────────
+const SPLIT_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const SPLIT_DAY_FULL  = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function WorkoutSplitView({ profile, setProfile, onSave }) {
+  const saved = profile?.workout_split || {}
+  const [days, setDays] = useState(() => {
+    const d = saved.days || {}
+    const r = {}
+    for (let i = 0; i < 7; i++) r[i] = Object.prototype.hasOwnProperty.call(d, i) ? d[i] : null
+    return r
+  })
+  const [editDay, setEditDay] = useState(null)
+  const [notifyEnabled, setNotifyEnabled] = useState(saved.notifyEnabled ?? false)
+  const [notifyTime, setNotifyTime] = useState(saved.notifyTime ?? '09:00')
+  const [saving, setSaving] = useState(false)
+  const [saveOk, setSaveOk] = useState(false)
+  const [notifPerm, setNotifPerm] = useState(() => getNotifPermission())
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    isPushSubscribed().then(() => {})
+  }, [])
+
+  const handleDayClick = (i) => {
+    if (editDay === i) { setEditDay(null); return }
+    if (days[i] === null) setDays(d => ({ ...d, [i]: [] }))
+    setEditDay(i)
+  }
+
+  const removeDay = (i) => {
+    setDays(d => ({ ...d, [i]: null }))
+    if (editDay === i) setEditDay(null)
+  }
+
+  const toggleMuscle = (muscle) => {
+    if (editDay === null) return
+    setDays(d => {
+      const curr = d[editDay] || []
+      return { ...d, [editDay]: curr.includes(muscle) ? curr.filter(m => m !== muscle) : [...curr, muscle] }
+    })
+  }
+
+  const handleNotifyToggle = async () => {
+    setError(null)
+    if (!notifyEnabled) {
+      let perm = notifPerm
+      if (perm === 'default') {
+        perm = await requestNotifPermission()
+        setNotifPerm(perm)
+      }
+      if (perm === 'denied') {
+        setError('Notifications are blocked. Please enable them in your device/browser settings.')
+        return
+      }
+      try {
+        await subscribePush(profile.id)
+      } catch (e) {
+        setError('Could not subscribe to push notifications. Make sure VAPID keys are configured.')
+        return
+      }
+    }
+    setNotifyEnabled(v => !v)
+  }
+
+  const handleSave = async () => {
+    setSaving(true); setError(null)
+    try {
+      await onSave({ days, notifyEnabled, notifyTime })
+      setSaveOk(true)
+      setTimeout(() => setSaveOk(false), 2200)
+    } catch (e) {
+      setError('Failed to save: ' + e.message)
+    }
+    setSaving(false)
+  }
+
+  const workoutDays = Object.entries(days).filter(([, m]) => m !== null)
+
+  return (
+    <div>
+      {/* Day grid */}
+      <div className="label" style={{ marginBottom: 10 }}>WORKOUT DAYS</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
+        {SPLIT_DAY_SHORT.map((name, i) => {
+          const isOn = days[i] !== null
+          const isActive = editDay === i
+          return (
+            <button key={i} onClick={() => handleDayClick(i)} style={{
+              background: isOn ? (isActive ? 'var(--accent)' : 'var(--accent-low)') : 'var(--bg3)',
+              border: `1px solid ${isOn ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: 8, padding: '11px 0',
+              color: isOn ? (isActive ? '#fff' : 'var(--accent)') : 'var(--text-muted)',
+              fontSize: 10, fontWeight: 700,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+            }}>
+              {name}
+              {isOn && <div style={{ width: 4, height: 4, borderRadius: '50%', background: isActive ? 'rgba(255,255,255,0.7)' : 'var(--accent)' }} />}
+            </button>
+          )
+        })}
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20, textAlign: 'center' }}>Tap a day to add it — tap again to edit muscles</p>
+
+      {/* Muscle editor for selected day */}
+      {editDay !== null && days[editDay] !== null && (
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{SPLIT_DAY_FULL[editDay]}</div>
+              <div className="label" style={{ marginTop: 3 }}>SELECT MUSCLES</div>
+            </div>
+            <button onClick={() => removeDay(editDay)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '1px' }}>
+              REMOVE
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {MUSCLE_GROUPS.map(m => {
+              const sel = (days[editDay] || []).includes(m)
+              return (
+                <button key={m} onClick={() => toggleMuscle(m)} style={{
+                  padding: '8px 16px', borderRadius: 20, border: 'none',
+                  background: sel ? 'var(--accent)' : 'var(--bg3)',
+                  color: sel ? '#fff' : 'var(--text-dim)',
+                  fontSize: 13, fontWeight: 600,
+                }}>
+                  {m}
+                </button>
+              )
+            })}
+          </div>
+          {(days[editDay] || []).length === 0 && (
+            <p style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>No muscles selected — this day will just show as a workout day.</p>
+          )}
+        </div>
+      )}
+
+      {/* Split summary (all workout days) */}
+      {workoutDays.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+          {workoutDays.map(([i, muscles]) => (
+            <div key={i} onClick={() => handleDayClick(Number(i))} className="card" style={{
+              padding: '11px 14px', cursor: 'pointer',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              borderColor: editDay === Number(i) ? 'var(--accent)' : 'var(--border)',
+            }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{SPLIT_DAY_FULL[i]}</span>
+              <span style={{ fontSize: 11, color: muscles.length ? 'var(--text-dim)' : 'var(--text-muted)', maxWidth: '55%', textAlign: 'right' }}>
+                {muscles.length ? muscles.join(' · ') : 'No muscles set'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {workoutDays.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
+          No workout days set yet. Tap the days above to build your split.
+        </div>
+      )}
+
+      {/* Gym Reminders */}
+      <div className="card" style={{ padding: 16, marginBottom: 20 }}>
+        <div className="label" style={{ marginBottom: 12 }}>GYM REMINDERS</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Workout Notifications</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              {notifPerm === 'denied' ? 'Blocked — enable in device settings' : 'Remind me on workout days'}
+            </div>
+          </div>
+          <button onClick={handleNotifyToggle} style={{
+            background: notifyEnabled ? 'var(--accent)' : 'var(--bg3)',
+            border: `1px solid ${notifyEnabled ? 'var(--accent)' : 'var(--border)'}`,
+            borderRadius: 20, padding: '8px 18px',
+            color: notifyEnabled ? '#fff' : 'var(--text-dim)',
+            fontSize: 12, fontWeight: 700,
+          }}>
+            {notifyEnabled ? 'ON' : 'OFF'}
+          </button>
+        </div>
+        {notifyEnabled && (
+          <div style={{ marginTop: 14 }}>
+            <div className="label" style={{ marginBottom: 8 }}>REMINDER TIME</div>
+            <input
+              type="time"
+              value={notifyTime}
+              onChange={e => setNotifyTime(e.target.value)}
+              style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '10px 14px', fontSize: 16, width: '100%' }}
+            />
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <div style={{ padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13, marginBottom: 16 }}>
+          {error}
+        </div>
+      )}
+
+      <button onClick={handleSave} disabled={saving} style={{
+        background: saveOk ? '#2a7a2a' : 'var(--accent)', border: 'none',
+        borderRadius: 'var(--radius)', padding: '15px', width: '100%',
+        color: '#fff', fontWeight: 700, fontSize: 15,
+        transition: 'background 0.3s ease',
+      }}>
+        {saveOk ? '✓ SAVED!' : saving ? 'SAVING…' : 'SAVE SPLIT'}
+      </button>
     </div>
   )
 }

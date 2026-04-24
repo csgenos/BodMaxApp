@@ -49,13 +49,53 @@ export default function Dashboard() {
   const sessionDiff = thisWeek - lastWeek
   const volDiff = volPrev > 0 ? Math.round((volNow - volPrev) / volPrev * 100) : null
 
+  // Workout split message — only shown if user has set a split
+  const todaySplitMsg = (() => {
+    const split = profile?.workout_split
+    if (!split?.days) return null
+    const hasSplit = Object.values(split.days).some(v => v !== null && v !== undefined)
+    if (!hasSplit) return null
+
+    // Rotate message daily so it feels fresh
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+    const todayMuscles = split.days[new Date().getDay()] ?? null
+
+    if (todayMuscles === null) {
+      const msgs = [
+        "It's rest day! Well deserved.",
+        'Rest day today — recovery is just as important! 🛌',
+        'Taking it easy today. Your body will thank you.',
+        'Rest day. Go for a walk, stretch, and recharge.',
+      ]
+      return <span style={{ color: 'var(--text-dim)' }}>{msgs[dayOfYear % msgs.length]}</span>
+    }
+
+    if (todayMuscles.length === 0) {
+      return <span>Today is a <strong style={{ color: 'var(--accent)' }}>workout day</strong>! Get to the gym 💪</span>
+    }
+
+    const muscleStr = todayMuscles.join(' & ')
+    const msgs = [
+      <span key={0}>We are working out <strong style={{ color: 'var(--accent)' }}>{muscleStr}</strong> today! Make sure to stretch.</span>,
+      <span key={1}>Time to hit <strong style={{ color: 'var(--accent)' }}>{muscleStr}</strong>! Let&apos;s get it 💪</span>,
+      <span key={2}><strong style={{ color: 'var(--accent)' }}>{muscleStr}</strong> day is here. You&apos;ve got this!</span>,
+      <span key={3}>Today&apos;s focus: <strong style={{ color: 'var(--accent)' }}>{muscleStr}</strong>. Make it count! 🔥</span>,
+    ]
+    return msgs[dayOfYear % msgs.length]
+  })()
+
   if (loading) return <Loader />
 
   return (
     <div className="page" style={{ paddingBottom: 24 }}>
-      <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: 'var(--page-top) 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div className="label" style={{ marginBottom: 4 }}>{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}</div>
         <h1 style={{ fontSize: 26, fontWeight: 700 }}>{greeting}, <span style={{ color: 'var(--accent)' }}>{profile?.name?.split(' ')[0]}</span></h1>
+        {todaySplitMsg && (
+          <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--bg3)', borderRadius: 10, fontSize: 14, lineHeight: 1.5, color: 'var(--text)' }}>
+            {todaySplitMsg}
+          </div>
+        )}
       </div>
 
       {/* Weekly Stats */}

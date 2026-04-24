@@ -16,6 +16,8 @@
   --mono: 'SF Mono', ui-monospace, 'Courier New', monospace;
   --radius: 12px;
   --radius-sm: 8px;
+  /* Safe-area aware page top padding: respects Dynamic Island / notches */
+  --page-top: max(52px, calc(env(safe-area-inset-top, 0px) + 8px));
 }
 
 [data-theme="light"] {
