@@ -10,6 +10,7 @@ create table if not exists custom_exercises (
 
 alter table custom_exercises enable row level security;
 
+drop policy if exists "users manage own custom exercises" on custom_exercises;
 create policy "users manage own custom exercises"
   on custom_exercises for all
   using (auth.uid() = user_id);
