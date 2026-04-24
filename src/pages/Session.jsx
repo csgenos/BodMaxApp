@@ -433,16 +433,9 @@ export default function Session() {
   // ── SPLIT VIEW ────────────────────────────────────────────
   if (view === 'split') return (
     <div className="page" style={{ padding: 'var(--page-top) 20px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 26, fontWeight: 800 }}>My Split</h2>
-          <p style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 2 }}>Set your weekly workout schedule</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <TabBtn active={false} onClick={() => setView('list')}>LIST</TabBtn>
-          <TabBtn active={false} onClick={() => setView('calendar')}>CAL</TabBtn>
-          <TabBtn active={true} onClick={() => setView('split')}>SPLIT</TabBtn>
-        </div>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
+        <button onClick={() => setView('list')} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:14, fontWeight:600, padding:0 }}>← Back</button>
+        <h2 style={{ fontSize: 24, fontWeight: 800 }}>Weekly Split</h2>
       </div>
       <WorkoutSplitView profile={profile} setProfile={setProfile} onSave={handleSaveSplit} />
     </div>
@@ -461,40 +454,39 @@ export default function Session() {
 
     return (
       <div className="page" style={{ padding: 'var(--page-top) 20px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ fontSize: 24, fontWeight: 800 }}>Sessions</h2>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <TabBtn active={false} onClick={() => setView('list')}>LIST</TabBtn>
-            <TabBtn active={true} onClick={() => setView('calendar')}>CAL</TabBtn>
-            <TabBtn active={false} onClick={() => setView('split')}>SPLIT</TabBtn>
-          </div>
+        <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Training</h2>
+        <div style={{ display: 'flex', gap: 8, background: 'var(--bg3)', borderRadius: 100, padding: 4, marginBottom: 16 }}>
+          <TabBtn active={false} onClick={() => setView('list')}>List</TabBtn>
+          <TabBtn active={true} onClick={() => setView('calendar')}>Calendar</TabBtn>
         </div>
-        <div style={{ display:'flex', gap:8, marginBottom:24 }}>
-          <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:16, fontSize:15, fontWeight:700 }}>START SESSION</button>
-          <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:12, fontWeight:700, letterSpacing:'1px' }}>TEMPLATE</button>
+        <div style={{ display:'flex', gap:10, marginBottom:12 }}>
+          <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:'16px 0', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><span>▶</span> Start Session</button>
+          <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:14, fontWeight:600 }}>Template</button>
         </div>
 
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-          <button onClick={()=>setCalMonth(new Date(year,month-1,1))} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'6px 12px', color:'var(--text-dim)' }}>‹</button>
-          <span style={{ fontWeight:700 }}>{monthStr}</span>
-          <button onClick={()=>setCalMonth(new Date(year,month+1,1))} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'6px 12px', color:'var(--text-dim)' }}>›</button>
+        <div className="card" style={{ padding:16, marginBottom:0 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <span style={{ fontSize:18, fontWeight:800 }}>{monthStr}</span>
+          <div style={{ display:'flex', gap:8 }}><button onClick={()=>setCalMonth(new Date(year,month-1,1))} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:20, padding:'0 4px' }}>←</button>
+          <button onClick={()=>setCalMonth(new Date(year,month+1,1))} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:20, padding:'0 4px' }}>→</button></div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', padding: '4px 0' }}>{d}</div>)}
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-dim)', padding: '4px 0' }}>{d}</div>)}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 6 }}>
           {cells.map((d, i) => {
             if (!d) return <div key={i} />
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
             const hasSession = sessionDates.has(dateStr)
             const isToday = dateStr === new Date().toISOString().split('T')[0]
             return (
-              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius-sm)', background: hasSession ? 'var(--accent-low)' : isToday ? 'var(--bg3)' : 'transparent', border: `1px solid ${isToday ? 'var(--accent)' : 'transparent'}` }}>
-                <span style={{ fontSize: 13, fontWeight: isToday ? 700 : 400, color: hasSession ? 'var(--accent)' : isToday ? 'var(--accent)' : 'var(--text-dim)' }}>{d}</span>
-                {hasSession && <div style={{ width: 4, height: 4, background: 'var(--accent)', borderRadius: '50%', marginTop: 2 }} />}
+              <div key={i} style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: isToday ? '1px solid var(--accent)' : '1px solid transparent' }}>
+                <span style={{ fontSize: 14, fontWeight: isToday ? 700 : 400, color: isToday ? 'var(--accent)' : 'var(--text)' }}>{d}</span>
+                {hasSession && <div style={{ width: 6, height: 6, background: 'var(--accent)', borderRadius: '50%', marginTop: 2 }} />}
               </div>
             )
           })}
+        </div>
         </div>
         {showTemplates && <TemplatesModal templates={templates} sessions={sessions} onPickTemplate={startFromTemplate} onPickSession={startFromPastSession} onDeleteTemplate={handleDeleteTemplate} onClose={()=>setShowTemplates(false)} />}
       </div>
@@ -505,49 +497,52 @@ export default function Session() {
   return (
     <div className="page" style={{ padding: 'var(--page-top) 20px 24px' }}>
       {error && <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800 }}>Sessions</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <TabBtn active={true} onClick={() => setView('list')}>LIST</TabBtn>
-          <TabBtn active={false} onClick={() => setView('calendar')}>CAL</TabBtn>
-          <TabBtn active={false} onClick={() => setView('split')}>SPLIT</TabBtn>
-        </div>
+      <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Training</h2>
+      <div style={{ display: 'flex', gap: 8, background: 'var(--bg3)', borderRadius: 100, padding: 4, marginBottom: 16 }}>
+        <TabBtn active={true} onClick={() => setView('list')}>List</TabBtn>
+        <TabBtn active={false} onClick={() => setView('calendar')}>Calendar</TabBtn>
       </div>
-      <p style={{ color:'var(--text-dim)', marginBottom:24, fontSize:14 }}>Log workouts, track your lifts</p>
-      <div style={{ display:'flex', gap:8, marginBottom:24 }}>
-        <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:16, fontSize:15, fontWeight:700 }}>START SESSION</button>
-        <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:12, fontWeight:700, letterSpacing:'1px' }}>TEMPLATE</button>
+      <div style={{ display:'flex', gap:10, marginBottom:12 }}>
+        <button onClick={startSession} style={{ flex:2, background:'var(--accent)', color:'#fff', border:'none', borderRadius:'var(--radius)', padding:'16px 0', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          <span>▶</span> Start Session
+        </button>
+        <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:14, fontWeight:600 }}>Template</button>
       </div>
+      <button onClick={() => setView('split')} style={{ width:'100%', background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, marginBottom:20, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+        <span>📋</span> Weekly Split
+      </button>
 
       {sessions.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: 13 }}>No sessions yet</div>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-dim)', fontSize: 14 }}>No sessions yet — start lifting 💪</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {sessions.map(s => {
             const vol = calcSessionVolume(s)
             const groups = [...new Set((s.exercises||[]).map(e=>e.muscle_group||e.muscleGroup))].filter(Boolean)
             const deleting = confirmDelete === s.id
             return (
-              <div key={s.id} className="card" style={{ padding:16 }}>
+              <div key={s.id} className="card" style={{ padding:'16px 18px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:700, fontSize:14, marginBottom:3 }}>{groups.join(', ')||'Workout'}</div>
-                    <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                    <div style={{ fontWeight:700, fontSize:16, marginBottom:4 }}>{groups.join(', ')||'Workout'}</div>
+                    <div style={{ fontSize:13, color:'var(--text-dim)' }}>
                       {(s.exercises||[]).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration?` · ${Math.floor(s.duration/60)}m`:''}
                     </div>
+                    <div style={{ fontSize:12, color:'var(--text-dim)', marginTop:4 }}>
+                      {new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+                    </div>
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0, marginLeft:8 }}>
-                    <span style={{ fontSize:11, color:'var(--text-dim)' }}>{new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-                    <button onClick={() => editSession(s)} style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, padding:'4px 8px', color:'var(--text-dim)', fontSize:11, fontWeight:600 }}>Edit</button>
-                    <button onClick={() => setConfirmDelete(deleting ? null : s.id)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:18, lineHeight:1, padding:'2px 4px' }}>✕</button>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, marginLeft:8 }}>
+                    <button onClick={() => editSession(s)} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:18, padding:'4px' }}>✏️</button>
+                    <button onClick={() => setConfirmDelete(deleting ? null : s.id)} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:18, padding:'4px' }}>🗑️</button>
                   </div>
                 </div>
                 {deleting && (
                   <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid var(--border)' }}>
-                    <div style={{ fontSize:12, color:'var(--text-dim)', marginBottom:10 }}>Delete this session permanently?</div>
+                    <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:10 }}>Delete this session permanently?</div>
                     <div style={{ display:'flex', gap:8 }}>
-                      <button onClick={() => setConfirmDelete(null)} style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'8px', color:'var(--text-dim)', fontSize:12, fontWeight:600 }}>Cancel</button>
-                      <button onClick={() => handleDelete(s.id)} style={{ flex:1, background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'8px', color:'#fff', fontSize:12, fontWeight:700 }}>Delete</button>
+                      <button onClick={() => setConfirmDelete(null)} style={{ flex:1, background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'9px', color:'var(--text-dim)', fontSize:13, fontWeight:600 }}>Cancel</button>
+                      <button onClick={() => handleDelete(s.id)} style={{ flex:1, background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'9px', color:'#fff', fontSize:13, fontWeight:700 }}>Delete</button>
                     </div>
                   </div>
                 )}
@@ -562,7 +557,7 @@ export default function Session() {
 }
 
 function TabBtn({ active, onClick, children }) {
-  return <button onClick={onClick} style={{ background: active ? 'var(--accent-low)' : 'var(--bg3)', border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 6, padding: '6px 12px', color: active ? 'var(--accent)' : 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '1px', fontFamily: 'var(--mono)' }}>{children}</button>
+  return <button onClick={onClick} style={{ background: active ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '9px 20px', color: active ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: active ? 700 : 500 }}>{children}</button>
 }
 
 function StatPill({ label, value }) {

@@ -148,7 +148,7 @@ export default function Social() {
     const totalVol = getTotalVolume(friendVolumes)
     const rank = getRank(totalVol)
     return (
-      <div style={{ padding:'52px 20px 24px' }}>
+      <div style={{ padding:'var(--page-top) 20px 24px' }}>
         <button onClick={() => setSelectedFriend(null)} style={{ background:'none', border:'none', color:'var(--accent)', fontSize:14, fontWeight:600, marginBottom:20, padding:0 }}>← Back</button>
         <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
           <Avatar name={selectedFriend.name} size={52} />
@@ -207,19 +207,19 @@ export default function Social() {
 
   return (
     <div className="page" style={{ paddingBottom: 24 }}>
-      <div style={{ padding: '52px 20px 0', borderBottom: '1px solid var(--border)' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Social</h2>
-        <div style={{ display: 'flex' }}>
+      <div style={{ padding: 'var(--page-top) 20px 16px' }}>
+        <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>Social</h2>
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {[
-            { key: 'feed',    label: 'FEED',    badge: socialCounts?.feed     || 0 },
-            { key: 'friends', label: 'FRIENDS', badge: 0 },
-            { key: 'add',     label: 'ADD',     badge: socialCounts?.requests || 0 },
-            { key: 'compete', label: 'COMPETE', badge: 0 },
+            { key: 'feed',    label: 'Feed',    badge: socialCounts?.feed     || 0 },
+            { key: 'friends', label: 'Friends', badge: 0 },
+            { key: 'add',     label: 'Add',     badge: socialCounts?.requests || 0 },
+            { key: 'compete', label: 'Compete', badge: 0 },
           ].map(({ key, label, badge }) => (
-            <button key={key} onClick={() => switchTab(key)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === key ? 'var(--accent)' : 'transparent'}`, color: tab === key ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '8px', letterSpacing: '2px', fontFamily: 'var(--mono)', fontWeight: 600, position: 'relative' }}>
+            <button key={key} onClick={() => switchTab(key)} style={{ background: tab === key ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '9px 18px', color: tab === key ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: tab === key ? 700 : 500, flexShrink: 0, position: 'relative' }}>
               {label}
               {badge > 0 && (
-                <span style={{ position: 'absolute', top: 4, right: '50%', transform: 'translateX(14px)', background: 'var(--accent)', color: '#fff', borderRadius: 10, fontSize: 8, fontWeight: 700, minWidth: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', fontFamily: 'var(--mono)' }}>
+                <span style={{ position: 'absolute', top: -2, right: -2, background: 'var(--accent)', color: '#fff', borderRadius: 10, fontSize: 9, fontWeight: 700, minWidth: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid var(--bg2)' }}>
                   {badge > 9 ? '9+' : badge}
                 </span>
               )}
@@ -336,41 +336,40 @@ export default function Social() {
         {/* COMPETE */}
         {tab === 'compete' && (
           <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-              {['weekly', 'monthly'].map(m => (
-                <button key={m} onClick={() => setCompeteMode(m)} style={{ flex: 1, background: competeMode === m ? 'var(--accent-low)' : 'var(--bg3)', border: `1px solid ${competeMode === m ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '10px 0', color: competeMode === m ? 'var(--accent)' : 'var(--text-dim)', fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)', letterSpacing: '1px', textTransform: 'uppercase' }}>{m}</button>
+            <div style={{ display: 'flex', gap: 8, background: 'var(--bg3)', borderRadius: 100, padding: 4, marginBottom: 20 }}>
+              {[['weekly','This Week'],['monthly','This Month']].map(([m, label]) => (
+                <button key={m} onClick={() => setCompeteMode(m)} style={{ flex: 1, background: competeMode === m ? 'var(--accent)' : 'transparent', border: 'none', borderRadius: 100, padding: '10px 0', color: competeMode === m ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: competeMode === m ? 700 : 500 }}>{label}</button>
               ))}
             </div>
 
             {leaderLoading ? <Loader /> : sortedLeaderboard.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 0' }}>
                 <div style={{ fontSize: 32, marginBottom: 12 }}>🏆</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Add friends to compete!</div>
+                <div style={{ color: 'var(--text-dim)', fontSize: 14 }}>Add friends to compete!</div>
               </div>
             ) : sortedLeaderboard.map((entry, i) => {
-              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
               const count = competeMode === 'weekly' ? entry.weeklyCount : entry.monthlyCount
+              const isPodium = i < 3
+              const podiumBg = i === 0 ? 'var(--accent)' : i === 2 ? 'rgba(224,22,30,0.5)' : 'var(--bg3)'
               return (
-                <div key={entry.id} className="card" style={{ padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, border: entry.isMe ? `1px solid var(--accent)` : undefined, background: entry.isMe ? 'var(--accent-low)' : undefined }}>
-                  <div style={{ width: 28, textAlign: 'center', flexShrink: 0 }}>
-                    {medal
-                      ? <span style={{ fontSize: 20 }}>{medal}</span>
-                      : <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>#{i + 1}</span>
-                    }
+                <div key={entry.id} style={{ borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12, background: isPodium ? podiumBg : 'var(--bg3)', border: entry.isMe && !isPodium ? '1px solid var(--accent)' : '1px solid transparent' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: isPodium ? '#fff' : 'var(--text-dim)' }}>{i + 1}</span>
                   </div>
+                  <Avatar name={entry.name} size={36} light={isPodium} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: entry.isMe ? 'var(--accent)' : 'var(--text)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: isPodium ? '#fff' : 'var(--text)' }}>
                       {entry.name}{entry.isMe ? ' (you)' : ''}
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 1 }}>
-                      @{entry.username}{entry.streak > 0 ? ` · 🔥${entry.streak}` : ''}
+                    <div style={{ fontSize: 12, color: isPodium ? 'rgba(255,255,255,0.7)' : 'var(--text-dim)', marginTop: 1 }}>
+                      {count} session{count !== 1 ? 's' : ''}{entry.streak > 0 ? ` · ${entry.streak} day streak` : ''}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: entry.isMe ? 'var(--accent)' : 'var(--text)', fontFamily: 'var(--mono)', lineHeight: 1 }}>{count}</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                      {competeMode === 'weekly' ? 'this week' : 'this month'}
+                    <div style={{ fontSize: 20, fontWeight: 800, color: isPodium ? '#fff' : 'var(--text)' }}>
+                      {Math.round((competeMode === 'weekly' ? entry.weeklyVolume : entry.monthlyVolume) || 0).toLocaleString()}
                     </div>
+                    <div style={{ fontSize: 10, color: isPodium ? 'rgba(255,255,255,0.6)' : 'var(--text-dim)' }}>lbs</div>
                   </div>
                 </div>
               )
@@ -382,9 +381,9 @@ export default function Social() {
   )
 }
 
-function Avatar({ name, size = 40 }) {
+function Avatar({ name, size = 40, light = false }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--accent-low)', border: '1px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.4, fontWeight: 800, color: 'var(--accent)', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: light ? 'rgba(255,255,255,0.2)' : 'var(--accent-low)', border: `1px solid ${light ? 'rgba(255,255,255,0.4)' : 'var(--accent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.4, fontWeight: 800, color: light ? '#fff' : 'var(--accent)', flexShrink: 0 }}>
       {name?.[0]?.toUpperCase()}
     </div>
   )

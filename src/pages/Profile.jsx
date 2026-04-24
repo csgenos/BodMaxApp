@@ -63,65 +63,62 @@ export default function Profile() {
 
   return (
     <div className="page" style={{ paddingBottom: 40 }}>
-      {/* Header */}
-      <div style={{ padding: 'var(--page-top) 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--accent-low)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>
+      {/* Hero header card */}
+      <div style={{ margin: 'var(--page-top) 20px 0', background: 'var(--accent)', borderRadius: 'var(--radius)', padding: '20px 20px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 800, color: '#fff' }}>
             {profile?.name?.[0]?.toUpperCase()}
           </div>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}>{profile?.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>@{profile?.username}</div>
-            <div style={{ marginTop: 4 }}>
-              <span style={{ fontSize: 10, letterSpacing: '1.5px', fontFamily: 'var(--mono)', fontWeight: 700, padding: '3px 10px', borderRadius: 4, background: profile?.goal === 'bulk' ? 'var(--accent-low)' : profile?.goal === 'cut' ? 'rgba(74,158,181,0.1)' : 'rgba(74,154,74,0.1)', color: profile?.goal === 'bulk' ? 'var(--accent)' : profile?.goal === 'cut' ? '#4a9eb5' : '#4a9a4a' }}>
-                {profile?.goal?.toUpperCase()}
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>{profile?.name}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>@{profile?.username}</div>
+            <div style={{ marginTop: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+                Goal: {profile?.goal ? profile.goal.charAt(0).toUpperCase() + profile.goal.slice(1) : '—'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Overall Rank */}
-        <div style={{ background: 'var(--bg3)', border: `1px solid ${overallRank.color}`, borderRadius: 'var(--radius)', padding: 16, marginBottom: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div>
-              <div className="label" style={{ marginBottom: 4 }}>OVERALL RANK</div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: overallRank.color, letterSpacing: '1px', fontFamily: 'var(--mono)' }}>{overallRank.name}</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{Math.round(totalVol).toLocaleString()} lbs</div>
-              {nextTier && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>→ {nextTier.name}</div>}
+        {/* Rank + XP bar */}
+        <div style={{ background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>{overallRank.name} Rank</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
+              {Math.round(totalVol).toLocaleString()} / {nextTier ? Math.round(nextTier.min).toLocaleString() : '∞'} XP
             </div>
           </div>
-          <div style={{ height: 6, background: 'var(--border)', borderRadius: 3 }}>
-            <div style={{ height: '100%', width: `${progress}%`, background: overallRank.color, borderRadius: 3, transition: 'width 0.6s' }} />
+          <div style={{ height: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 4 }}>
+            <div style={{ height: '100%', width: `${progress}%`, background: '#fff', borderRadius: 4, transition: 'width 0.6s' }} />
           </div>
-          {nextTier && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>{progress}% to {nextTier.name} ({Math.round(nextTier.min - totalVol).toLocaleString()} lbs to go)</div>}
+          {nextTier && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 5 }}>{Math.round(nextTier.min - totalVol).toLocaleString()} XP to {nextTier.name}</div>}
         </div>
 
-        {/* Streak row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 4px 0' }}>
-          <span style={{ fontSize: 13, color: streak.current > 0 ? 'var(--text)' : 'var(--text-muted)' }}>
-            {streak.current > 0 ? `🔥 ${streak.current} day streak` : '💤 No active streak'}
+        {/* Streak */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>{streak.current > 0 ? '🔥' : '💤'}</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
+            {streak.current > 0 ? `${streak.current} Day Streak` : 'No active streak'}
           </span>
-          {streak.best > 0 && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>Best: {streak.best}</span>}
+          {streak.best > 0 && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginLeft: 'auto' }}>Best: {streak.best}</span>}
         </div>
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, padding: '16px 20px 0' }}>
-        {[['SESSIONS', sessions.length], ['PRs SET', prs.length], ['TOTAL VOL', `${Math.round(totalVol / 1000)}k`]].map(([l, v]) => (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '16px 20px 0' }}>
+        {[['Sessions', sessions.length], ['PRs', prs.length], ['Volume', totalVol >= 1000000 ? `${(totalVol/1000000).toFixed(1)}M` : `${Math.round(totalVol/1000)}k`]].map(([l, v]) => (
           <div key={l} className="card" style={{ padding: 14, textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{v}</div>
-            <div className="label" style={{ marginTop: 3 }}>{l}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>{l}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{v}</div>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', padding: '16px 20px 0', borderBottom: '1px solid var(--border)', marginTop: 8 }}>
-        {['overview', 'prs', 'settings'].map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: 'none', border: 'none', borderBottom: `2px solid ${tab === t ? 'var(--accent)' : 'transparent'}`, color: tab === t ? 'var(--accent)' : 'var(--text-muted)', padding: '10px 0', fontSize: '9px', letterSpacing: '3px', fontFamily: 'var(--mono)', fontWeight: 600, textTransform: 'uppercase' }}>
-            {t === 'overview' ? `OVERVIEW${earnedCount > 0 ? ` (${earnedCount})` : ''}` : t.toUpperCase()}
+      <div style={{ display: 'flex', gap: 8, padding: '16px 20px 0' }}>
+        {[['overview','Overview'],['prs','PRs'],['settings','Settings']].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} style={{ flex: 1, background: tab === key ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '10px 0', color: tab === key ? '#fff' : 'var(--text-dim)', fontSize: 14, fontWeight: tab === key ? 700 : 500 }}>
+            {label}{key === 'overview' && earnedCount > 0 ? ` (${earnedCount})` : ''}
           </button>
         ))}
       </div>
@@ -132,46 +129,40 @@ export default function Profile() {
         {/* OVERVIEW */}
         {tab === 'overview' && (
           <div>
-            <div className="label" style={{ marginBottom: 10 }}>MUSCLE RANKS</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 12, marginTop: 4 }}>Muscle Rankings</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
               {MUSCLE_GROUPS.map(g => {
                 const vol = volumes[g] || 0
                 const rank = getRank(vol)
                 const prog = getRankProgress(vol)
                 return (
-                  <div key={g} className="card" style={{ padding: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{g}</span>
-                      <span style={{ fontSize: '7px', letterSpacing: '1.5px', fontFamily: 'var(--mono)', color: rank.color, fontWeight: 700 }}>{rank.name}</span>
+                  <div key={g} className="card" style={{ padding: '14px 14px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>{g}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: rank.color, background: `${rank.color}22`, padding: '2px 8px', borderRadius: 20 }}>{rank.name}</span>
                     </div>
-                    <div style={{ height: 3, background: 'var(--border)', borderRadius: 2 }}>
+                    <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 5 }}>
                       <div style={{ height: '100%', width: `${prog}%`, background: rank.color, borderRadius: 2 }} />
                     </div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--mono)' }}>{Math.round(vol).toLocaleString()} lbs</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{Math.round(vol).toLocaleString()} lbs</div>
                   </div>
                 )
               })}
             </div>
 
             {/* Achievements */}
-            <div className="label" style={{ marginBottom: 10 }}>ACHIEVEMENTS</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 12 }}>Achievements</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {achievements.filter(a => a.earned).map(a => (
-                <div key={a.id} className="card" style={{ padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <span style={{ fontSize: 22 }}>{a.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700 }}>{a.label}</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 1 }}>{a.desc}</div>
-                  </div>
+                <div key={a.id} style={{ background: 'var(--accent)', borderRadius: 'var(--radius)', padding: '16px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
+                  <span style={{ fontSize: 24 }}>{a.icon}</span>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{a.label}</div>
                 </div>
               ))}
               {achievements.filter(a => !a.earned).map(a => (
-                <div key={a.id} style={{ padding: '10px 12px', display: 'flex', gap: 10, alignItems: 'center', opacity: 0.3, background: 'var(--bg2)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 22, filter: 'grayscale(1)' }}>{a.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>{a.label}</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 1 }}>{a.desc}</div>
-                  </div>
+                <div key={a.id} style={{ background: 'var(--bg3)', borderRadius: 'var(--radius)', padding: '16px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', opacity: 0.4 }}>
+                  <span style={{ fontSize: 24, filter: 'grayscale(1)' }}>{a.icon}</span>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', lineHeight: 1.3 }}>{a.label}</div>
                 </div>
               ))}
             </div>

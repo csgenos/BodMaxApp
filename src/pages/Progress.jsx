@@ -180,11 +180,11 @@ export default function Progress() {
 
   return (
     <div className="page" style={{ paddingBottom:24 }}>
-      <div style={{ padding:'52px 20px 0', borderBottom:'1px solid var(--border)' }}>
-        <h2 style={{ fontSize:26, fontWeight:800, marginBottom:16 }}>Progress</h2>
-        <div style={{ display:'flex', overflowX:'auto' }}>
-          {['history','weight','body','prs','volume'].map(t => (
-            <button key={t} onClick={()=>setTab(t)} style={{ flex:1, background:'none', border:'none', borderBottom:`2px solid ${tab===t?'var(--accent)':'transparent'}`, color:tab===t?'var(--accent)':'var(--text-muted)', padding:'10px 4px', fontSize:'8px', letterSpacing:'3px', fontFamily:'var(--mono)', fontWeight:600, textTransform:'uppercase', whiteSpace:'nowrap' }}>{t}</button>
+      <div style={{ padding:'var(--page-top) 20px 16px' }}>
+        <h2 style={{ fontSize:28, fontWeight:800, marginBottom:16 }}>Progress</h2>
+        <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:4 }}>
+          {[['history','History'],['weight','Weight'],['body','Body'],['prs','Prs'],['volume','Volume']].map(([key,label]) => (
+            <button key={key} onClick={()=>setTab(key)} style={{ background:tab===key?'var(--accent)':'var(--bg3)', border:'none', borderRadius:100, padding:'9px 18px', color:tab===key?'#fff':'var(--text-dim)', fontSize:14, fontWeight:tab===key?700:500, whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>
           ))}
         </div>
       </div>
@@ -196,7 +196,7 @@ export default function Progress() {
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
               {[30, 90, 180].map(r => (
-                <button key={r} onClick={() => setHistRange(r)} style={{ flex: 1, background: histRange === r ? 'var(--accent-low)' : 'var(--bg3)', border: `1px solid ${histRange === r ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', padding: '8px 0', color: histRange === r ? 'var(--accent)' : 'var(--text-dim)', fontSize: 11, fontWeight: 700 }}>{r}d</button>
+                <button key={r} onClick={() => setHistRange(r)} style={{ flex: 1, background: histRange === r ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '9px 0', color: histRange === r ? '#fff' : 'var(--text-dim)', fontSize: 13, fontWeight: histRange === r ? 700 : 500 }}>{r}d</button>
               ))}
             </div>
             <ChartCard title="WEEKLY VOLUME (k lbs)">
@@ -225,10 +225,10 @@ export default function Progress() {
                 </ResponsiveContainer>
               ) : <Empty>Not enough data yet</Empty>}
             </ChartCard>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <StatCard label="TOTAL SESSIONS" value={sessions.length} />
-              <StatCard label="TOTAL PRs" value={prs.length} />
-              <StatCard label="SINCE" value={profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) : '—'} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <StatCard label="Sessions" value={sessions.length} />
+              <StatCard label="PRs" value={prs.length} />
+              <StatCard label="Member" value={profile?.created_at ? `Since ${new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: "'yy" })}` : '—'} />
             </div>
           </div>
         )}
@@ -401,11 +401,11 @@ export default function Progress() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 10px' }}>
-              <div className="label">BREAKDOWN BY MUSCLE</div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 12px' }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--text-dim)' }}>Breakdown by Muscle</div>
               <div style={{ display:'flex', gap:6 }}>
-                <button onClick={()=>setVolMode('week')} style={{ background:volMode==='week'?'var(--accent-low)':'var(--bg3)', border:`1px solid ${volMode==='week'?'var(--accent)':'var(--border)'}`, borderRadius:6, padding:'5px 10px', color:volMode==='week'?'var(--accent)':'var(--text-muted)', fontSize:10, fontWeight:700, letterSpacing:'1px', fontFamily:'var(--mono)' }}>WEEK</button>
-                <button onClick={()=>setVolMode('month')} style={{ background:volMode==='month'?'var(--accent-low)':'var(--bg3)', border:`1px solid ${volMode==='month'?'var(--accent)':'var(--border)'}`, borderRadius:6, padding:'5px 10px', color:volMode==='month'?'var(--accent)':'var(--text-muted)', fontSize:10, fontWeight:700, letterSpacing:'1px', fontFamily:'var(--mono)' }}>MONTH</button>
+                <button onClick={()=>setVolMode('week')} style={{ background:volMode==='week'?'var(--accent)':'var(--bg3)', border:'none', borderRadius:100, padding:'7px 14px', color:volMode==='week'?'#fff':'var(--text-dim)', fontSize:12, fontWeight:volMode==='week'?700:500 }}>Week</button>
+                <button onClick={()=>setVolMode('month')} style={{ background:volMode==='month'?'var(--accent)':'var(--bg3)', border:'none', borderRadius:100, padding:'7px 14px', color:volMode==='month'?'#fff':'var(--text-dim)', fontSize:12, fontWeight:volMode==='month'?700:500 }}>Month</button>
               </div>
             </div>
 
@@ -472,7 +472,7 @@ export default function Progress() {
 function ChartCard({ title, children }) {
   return (
     <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-      <div className="label" style={{ marginBottom: 12 }}>{title}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 14 }}>{title}</div>
       {children}
     </div>
   )
@@ -480,9 +480,9 @@ function ChartCard({ title, children }) {
 
 function StatCard({ label, value }) {
   return (
-    <div className="card" style={{ flex: 1, padding: 14, textAlign: 'center' }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{value}</div>
-      <div className="label" style={{ marginTop: 3 }}>{label}</div>
+    <div className="card" style={{ padding: '16px 12px', textAlign: 'center' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{value}</div>
     </div>
   )
 }

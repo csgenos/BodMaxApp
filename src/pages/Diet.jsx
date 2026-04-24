@@ -50,8 +50,7 @@ export default function Diet() {
 
   const handleAdd = async () => {
     if (!form.meal || !form.calories || saving) return
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
       await addDietEntry(profile.id, {
         date: todayStr(),
@@ -75,92 +74,109 @@ export default function Diet() {
   }
 
   const handleDelete = async id => {
-    try {
-      await deleteDietEntry(profile.id, id)
-      if (mounted.current) await load()
-    } catch (e) {
-      if (mounted.current) setError(e.message)
-    }
+    try { await deleteDietEntry(profile.id, id); if (mounted.current) await load() }
+    catch (e) { if (mounted.current) setError(e.message) }
   }
 
   return (
     <div className="page" style={{ paddingBottom: 24 }}>
-      <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
-        <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 16 }}>Diet</h2>
-        <MacroBar label="CALORIES" current={totalCal.toLocaleString()} target={(profile?.target_calories || 0).toLocaleString()} pct={calPct} color="var(--accent)" />
-        <div style={{ marginTop: 10 }}>
-          <MacroBar label="PROTEIN" current={`${totalProt}g`} target={`${profile?.target_protein || 0}g`} pct={protPct} color="#4a9eb5" />
-        </div>
-        {(profile?.target_carbs || totalCarbs > 0) && (
-          <div style={{ marginTop:10 }}>
-            <MacroBar label="CARBS" current={`${totalCarbs}g`} target={`${profile?.target_carbs||0}g`} pct={carbPct} color="#c88a2e" />
-          </div>
-        )}
-        {(profile?.target_fat || totalFat > 0) && (
-          <div style={{ marginTop:10 }}>
-            <MacroBar label="FAT" current={`${totalFat}g`} target={`${profile?.target_fat||0}g`} pct={fatPct} color="#9a5ad4" />
-          </div>
-        )}
+      {/* Header */}
+      <div style={{ padding: 'var(--page-top) 20px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ fontSize: 28, fontWeight: 800 }}>Nutrition</h2>
+        <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 100, padding: '10px 18px', color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+          + Log Meal
+        </button>
       </div>
 
-      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Macro progress card */}
+      <div style={{ padding: '0 20px 20px' }}>
+        <div className="card" style={{ padding: '16px 18px' }}>
+          <MacroBar label="Calories" current={totalCal.toLocaleString()} target={(profile?.target_calories || 0).toLocaleString()} pct={calPct} color="var(--accent)" />
+          <div style={{ marginTop: 14 }}>
+            <MacroBar label="Protein" current={`${totalProt}g`} target={`${profile?.target_protein || 0}g`} pct={protPct} color="#4a9eb5" />
+          </div>
+          {(profile?.target_carbs || totalCarbs > 0) && (
+            <div style={{ marginTop: 14 }}>
+              <MacroBar label="Carbs" current={`${totalCarbs}g`} target={`${profile?.target_carbs || 0}g`} pct={carbPct} color="#c88a2e" />
+            </div>
+          )}
+          {(profile?.target_fat || totalFat > 0) && (
+            <div style={{ marginTop: 14 }}>
+              <MacroBar label="Fat" current={`${totalFat}g`} target={`${profile?.target_fat || 0}g`} pct={fatPct} color="#9a5ad4" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Meals list */}
+      <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {error && <div style={{ padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
-        {entries.length === 0 && !showAdd && (
-          <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>No meals logged today</div>
+
+        {entries.length > 0 && (
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-dim)', marginBottom: 4 }}>Today's Meals</div>
         )}
+
+        {entries.length === 0 && !showAdd && (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-dim)', fontSize: 14 }}>No meals logged today</div>
+        )}
+
         {entries.map(entry => (
           <div key={entry.id} className="card" style={{ overflow: 'hidden' }}>
             {entry.photo_url && <img src={entry.photo_url} alt="" style={{ width: '100%', height: 130, objectFit: 'cover' }} />}
-            <div style={{ padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{entry.meal}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--mono)' }}>{entry.time}</div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>{entry.meal}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{entry.time}</div>
                 </div>
-                <button onClick={() => handleDelete(entry.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, padding: '0 0 0 8px' }}>×</button>
+                <button onClick={() => handleDelete(entry.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 18, padding: '0 0 0 8px' }}>×</button>
               </div>
-              <div style={{ display: 'flex', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700, fontFamily: 'var(--mono)' }}>{entry.calories} kcal</span>
-                {entry.protein > 0 && <span style={{ fontSize: 13, color: '#4a9eb5', fontWeight: 700, fontFamily: 'var(--mono)' }}>{entry.protein}g P</span>}
-                {entry.carbs > 0 && <span style={{ fontSize: 13, color: '#c88a2e', fontWeight: 700, fontFamily: 'var(--mono)' }}>{entry.carbs}g C</span>}
-                {entry.fat > 0 && <span style={{ fontSize: 13, color: '#9a5ad4', fontWeight: 700, fontFamily: 'var(--mono)' }}>{entry.fat}g F</span>}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <MacroBadge value={`${entry.calories} cal`} color="var(--accent)" />
+                {entry.protein > 0 && <MacroBadge value={`${entry.protein}g P`} color="#4a9eb5" />}
+                {entry.carbs > 0 && <MacroBadge value={`${entry.carbs}g C`} color="#c88a2e" />}
+                {entry.fat > 0 && <MacroBadge value={`${entry.fat}g F`} color="#9a5ad4" />}
               </div>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Log meal form modal-style */}
       {showAdd && (
-        <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="label">LOG MEAL</div>
-          <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} />
-          <div style={{ display: 'flex', gap: 10 }}>
-            <input style={INP} type="number" placeholder="Calories *" value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} />
-            <input style={INP} type="number" placeholder="Protein (g)" value={form.protein} onChange={e => setForm(f => ({ ...f, protein: e.target.value }))} />
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <input style={INP} type="number" placeholder="Carbs (g)" value={form.carbs} onChange={e => setForm(f => ({ ...f, carbs: e.target.value }))} />
-            <input style={INP} type="number" placeholder="Fat (g)" value={form.fat} onChange={e => setForm(f => ({ ...f, fat: e.target.value }))} />
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display: 'none' }} />
-          {form.photo ? (
-            <div style={{ position: 'relative' }}>
-              <img src={form.photo} alt="" style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
-              <button onClick={() => setForm(f => ({ ...f, photo: null }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, fontSize: 16 }}>×</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowAdd(false)}>
+          <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 20px 16px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 16, fontWeight: 700 }}>Log Meal</span>
+              <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
             </div>
-          ) : (
-            <button onClick={() => fileRef.current.click()} style={{ background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-muted)', fontSize: 13 }}>📷 Add Photo (optional)</button>
-          )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => setShowAdd(false)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>
-            <button onClick={handleAdd} disabled={saving} style={{ flex: 2, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 12, color: '#fff', fontWeight: 700, fontSize: 14, opacity: saving ? 0.7 : 1 }}>{saving ? 'SAVING...' : 'LOG MEAL'}</button>
+            <div style={{ overflowY: 'auto', padding: '16px 20px 40px', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} autoFocus />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input style={INP} type="number" placeholder="Calories *" value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} />
+                <input style={INP} type="number" placeholder="Protein (g)" value={form.protein} onChange={e => setForm(f => ({ ...f, protein: e.target.value }))} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input style={INP} type="number" placeholder="Carbs (g)" value={form.carbs} onChange={e => setForm(f => ({ ...f, carbs: e.target.value }))} />
+                <input style={INP} type="number" placeholder="Fat (g)" value={form.fat} onChange={e => setForm(f => ({ ...f, fat: e.target.value }))} />
+              </div>
+              <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display: 'none' }} />
+              {form.photo ? (
+                <div style={{ position: 'relative' }}>
+                  <img src={form.photo} alt="" style={{ width: '100%', height: 130, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+                  <button onClick={() => setForm(f => ({ ...f, photo: null }))} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '50%', width: 28, height: 28, fontSize: 16 }}>×</button>
+                </div>
+              ) : (
+                <button onClick={() => fileRef.current.click()} style={{ background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-dim)', fontSize: 13 }}>📷 Add Photo (optional)</button>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button onClick={() => setShowAdd(false)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 14, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>
+                <button onClick={handleAdd} disabled={saving || !form.meal || !form.calories} style={{ flex: 2, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, color: '#fff', fontWeight: 700, fontSize: 14, opacity: (saving || !form.meal || !form.calories) ? 0.6 : 1 }}>
+                  {saving ? 'Saving...' : 'Log Meal'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      {!showAdd && (
-        <div style={{ padding: '8px 20px 0' }}>
-          <button onClick={() => setShowAdd(true)} style={{ width: '100%', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: 16, color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '1px' }}>+ LOG MEAL</button>
         </div>
       )}
     </div>
@@ -170,13 +186,21 @@ export default function Diet() {
 function MacroBar({ label, current, target, pct, color }) {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        <span className="label">{label}</span>
-        <span style={{ fontSize: 11, color, fontFamily: 'var(--mono)', fontWeight: 700 }}>{current} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/ {target}</span></span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7, alignItems: 'baseline' }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+        <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
+          <span style={{ color, fontWeight: 700 }}>{current}</span> / {target}
+        </span>
       </div>
-      <div style={{ height: 4, background: 'var(--border)', borderRadius: 2 }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.4s' }} />
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 3 }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.4s' }} />
       </div>
     </div>
+  )
+}
+
+function MacroBadge({ value, color }) {
+  return (
+    <span style={{ fontSize: 12, fontWeight: 700, color, background: `${color}22`, padding: '4px 10px', borderRadius: 20 }}>{value}</span>
   )
 }
