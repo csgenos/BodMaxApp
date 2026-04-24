@@ -113,4 +113,5 @@ export const calcVolumes = (sessions) => {
 export const getTotalVolume = (vols) => Object.values(vols).reduce((s, v) => s + v, 0)
 export const calcSessionVolume = (session) =>
   (session.exercises || []).reduce((sum, ex) =>
-    sum + (ex.sets || []).reduce((s2, set) => s2 + ((+set.weight || 0) * (+set.reps || 0)), 0), 0)
+    sum + (ex.sets || []).reduce((s2, set) =>
+      s2 + ((set.warmup || set.is_warmup) ? 0 : (+set.weight || 0) * (+set.reps || 0)), 0), 0)

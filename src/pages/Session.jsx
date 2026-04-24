@@ -6,6 +6,7 @@ import {
 } from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
 import { getNotifPermission, requestNotifPermission, showTimerNotification, subscribePush, isPushSubscribed } from '../lib/notifications'
+import { haptic } from '../lib/haptics'
 
 const uid = () => Math.random().toString(36).slice(2)
 const ACTIVE_KEY = 'bm_active_session'
@@ -49,6 +50,7 @@ export default function Session() {
   const [tplName, setTplName] = useState('')
   const [showDiscard, setShowDiscard] = useState(false)
   const [error, setError] = useState(null)
+  const [oneRMEx, setOneRMEx] = useState(null) // { name, sets } for 1RM modal
   const restIntervalRef = useRef(null)
   const [restSeconds, setRestSeconds] = useState(0)
   const [restActive, setRestActive] = useState(false)
@@ -93,7 +95,7 @@ export default function Session() {
         id: ex.id,
         name: ex.name,
         muscleGroup: ex.muscle_group || ex.muscleGroup,
-        sets: (ex.sets || []).map(st => ({ id: st.id, weight: String(st.weight ?? ''), reps: String(st.reps ?? '') })),
+        sets: (ex.sets || []).map(st => ({ id: st.id, weight: String(st.weight ?? ''), reps: String(st.reps ?? ''), warmup: st.is_warmup || false })),
       })),
       cardio: (s.cardio || []).map(c => ({ ...c })),
     }
@@ -195,9 +197,10 @@ export default function Session() {
   }
 
   const removeExercise = id => setActive(s => ({ ...s, exercises: s.exercises.filter(e => e.id !== id) }))
-  const addSet = exId => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '' }] } : ex) }))
+  const addSet = exId => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: [...ex.sets, { id: uid(), weight: '', reps: '', warmup: false }] } : ex) }))
   const removeSet = (exId, setId) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.filter(st => st.id !== setId) } : ex) }))
   const updateSet = (exId, setId, f, v) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.map(st => st.id === setId ? { ...st, [f]: v } : st) } : ex) }))
+  const toggleWarmup = (exId, setId) => setActive(s => ({ ...s, exercises: s.exercises.map(ex => ex.id === exId ? { ...ex, sets: ex.sets.map(st => st.id === setId ? { ...st, warmup: !st.warmup } : st) } : ex) }))
   const addCardio = c => { setActive(s => ({ ...s, cardio: [...s.cardio, { ...c, id: uid() }] })); setShowCardio(false) }
 
   // ── REST TIMER ───────────────────────────────────────────
@@ -218,6 +221,7 @@ export default function Session() {
         clearInterval(restIntervalRef.current)
         setRestActive(false)
         setRestDone(true)
+        haptic.timer()
         setTimeout(() => setRestDone(false), 4000)
         // Show notification — works even when app is backgrounded in standalone mode
         showTimerNotification('Rest Complete ⏱', 'Time to get back to your workout!')
@@ -250,6 +254,7 @@ export default function Session() {
         )
         const results = await Promise.all(prChecks)
         const prs = [...new Set(results.filter(Boolean))]
+        if (prs.length > 0) haptic.pr(); else haptic.success()
         await load()
         setNewPRs(prs); setSummary(sess); setActive(null); setView('summary')
       }
@@ -258,7 +263,7 @@ export default function Session() {
   }
 
   const fmtTime = s => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
-  const sessVol = exs => (exs || []).reduce((sum, ex) => sum + (ex.sets || []).reduce((s2, set) => s2 + ((+set.weight || 0) * (+set.reps || 0)), 0), 0)
+  const sessVol = exs => (exs || []).reduce((sum, ex) => sum + (ex.sets || []).reduce((s2, set) => s2 + ((set.warmup || set.is_warmup) ? 0 : (+set.weight || 0) * (+set.reps || 0)), 0), 0)
 
   const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '8px 6px', fontSize: 15, textAlign: 'center', width: '100%', fontFamily: 'var(--mono)' }
 
@@ -301,6 +306,15 @@ export default function Session() {
           SAVE AS TEMPLATE
         </button>
       )}
+      {navigator.share && (
+        <button onClick={() => {
+          const vol = Math.round(calcSessionVolume(summary)).toLocaleString()
+          const exNames = (summary.exercises||[]).map(e=>e.name).join(', ')
+          navigator.share({ title: 'BodMax Workout', text: `Just crushed a ${fmtTime(summary.duration||0)} session!\n${vol} lbs total volume\n${exNames}` }).catch(()=>{})
+        }} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 32px', color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, width: '100%', marginBottom: 12 }}>
+          SHARE WORKOUT
+        </button>
+      )}
       <button onClick={() => { setSummary(null); setNewPRs([]); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
     </div>
   )
@@ -335,14 +349,17 @@ export default function Session() {
                   </div>
                 )}
               </div>
-              <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button onClick={() => setOneRMEx(ex)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 13, padding: '3px 8px', fontFamily: 'var(--mono)' }}>1RM</button>
+                <button onClick={() => removeExercise(ex.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20 }}>×</button>
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6 }}>
-              <span className="label">#</span><span className="label" style={{ textAlign: 'center' }}>LBS</span><span className="label" style={{ textAlign: 'center' }}>REPS</span><span />
+            <div style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 28px', gap: 6, marginBottom: 6 }}>
+              <span className="label" style={{ textAlign: 'center' }}>SET</span><span className="label" style={{ textAlign: 'center' }}>LBS</span><span className="label" style={{ textAlign: 'center' }}>REPS</span><span />
             </div>
             {ex.sets.map((set, i) => (
-              <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textAlign: 'center' }}>{i + 1}</span>
+              <div key={set.id} style={{ display: 'grid', gridTemplateColumns: '32px 1fr 1fr 28px', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                <button onClick={() => { toggleWarmup(ex.id, set.id); haptic.light() }} style={{ background: set.warmup ? 'rgba(224,22,30,0.15)' : 'var(--bg3)', border: set.warmup ? '1px solid var(--accent)' : '1px solid var(--border)', borderRadius: 6, color: set.warmup ? 'var(--accent)' : 'var(--text-muted)', fontSize: 10, padding: '4px 2px', textAlign: 'center', fontFamily: 'var(--mono)', fontWeight: 700, cursor: 'pointer' }}>{set.warmup ? 'W' : i + 1}</button>
                 <input style={INP} type="number" inputMode="decimal" placeholder={suggestions[ex.name]?.weight || '0'} value={set.weight} onChange={e => updateSet(ex.id, set.id, 'weight', e.target.value)} />
                 <input style={INP} type="number" inputMode="numeric" placeholder={suggestions[ex.name]?.reps || '0'} value={set.reps} onChange={e => updateSet(ex.id, set.id, 'reps', e.target.value)} />
                 <button onClick={() => removeSet(ex.id, set.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18 }}>−</button>
@@ -383,6 +400,17 @@ export default function Session() {
           )}
         </div>
 
+        {/* Session Notes */}
+        <div className="card" style={{ padding: 14 }}>
+          <div className="label" style={{ marginBottom: 8 }}>SESSION NOTES</div>
+          <textarea
+            value={active.notes || ''}
+            onChange={e => setActive(s => ({ ...s, notes: e.target.value }))}
+            placeholder="How did this session feel? Any injuries, PRs, or notes..."
+            style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '10px 12px', fontSize: 14, width: '100%', minHeight: 72, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+          />
+        </div>
+
         {error && <div style={{ padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
         <button onClick={()=>setShowPicker(true)} style={{ background:'transparent', border:'1px dashed var(--border)', borderRadius:'var(--radius)', padding:14, color:'var(--text-dim)', fontSize:14, fontWeight:600 }}>+ ADD EXERCISE</button>
@@ -395,6 +423,7 @@ export default function Session() {
 
       {showPicker && <ExercisePicker group={pickerGroup} onGroupChange={setPickerGroup} onSelect={addExercise} onClose={()=>setShowPicker(false)} />}
       {showCardio && <CardioModal onAdd={addCardio} onClose={()=>setShowCardio(false)} />}
+      {oneRMEx && <OneRMModal ex={oneRMEx} onClose={()=>setOneRMEx(null)} />}
       {showDiscard && (
         <Modal onClose={()=>setShowDiscard(false)} title="DISCARD SESSION?">
           <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:16, lineHeight:1.5 }}>
@@ -684,6 +713,52 @@ function CardioModal({ onAdd, onClose }) {
         <input style={INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e => setCalories(e.target.value)} />
       </div>
       <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
+    </Modal>
+  )
+}
+
+function OneRMModal({ ex, onClose }) {
+  const [weight, setWeight] = useState('')
+  const [reps, setReps] = useState('')
+  // Pre-fill with best working set (non-warmup, highest weight)
+  useEffect(() => {
+    const working = (ex.sets || []).filter(s => !s.warmup && s.weight && s.reps)
+    if (working.length) {
+      const best = working.reduce((a, b) => (+b.weight || 0) > (+a.weight || 0) ? b : a)
+      setWeight(best.weight); setReps(best.reps)
+    }
+  }, [ex])
+  const oneRM = weight && reps && +reps > 0 ? Math.round(+weight * (1 + +reps / 30)) : null
+  const pcts = [100, 95, 90, 85, 80, 75, 70, 65, 60]
+  const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '11px 12px', fontSize: 16, textAlign: 'center', fontFamily: 'var(--mono)', width: '100%' }
+  return (
+    <Modal onClose={onClose} title={`1RM — ${ex.name}`}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+        <div>
+          <div className="label" style={{ marginBottom: 6 }}>WEIGHT (LBS)</div>
+          <input style={INP} type="number" inputMode="decimal" placeholder="135" value={weight} onChange={e => setWeight(e.target.value)} />
+        </div>
+        <div>
+          <div className="label" style={{ marginBottom: 6 }}>REPS</div>
+          <input style={INP} type="number" inputMode="numeric" placeholder="5" value={reps} onChange={e => setReps(e.target.value)} />
+        </div>
+      </div>
+      {oneRM && (
+        <>
+          <div style={{ background: 'var(--accent)', borderRadius: 'var(--radius)', padding: '16px', textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, letterSpacing: '2px', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--mono)', marginBottom: 4 }}>ESTIMATED 1RM</div>
+            <div style={{ fontSize: 40, fontWeight: 800, color: '#fff', fontFamily: 'var(--mono)' }}>{oneRM} lbs</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            {pcts.map(p => (
+              <div key={p} style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>{p}%</span>
+                <span style={{ fontWeight: 700, fontFamily: 'var(--mono)' }}>{Math.round(oneRM * p / 100)} lbs</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </Modal>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { searchUsers, sendFriendRequest, getFriendsFeedAndFriends, getFriendPRs, getFriendSessions, getFriendRequests, acceptFriendRequest, declineFriendRequest, getFriendshipStatus, getLeaderboard, getLikesForSessions, toggleLike } from '../lib/db'
 import { MUSCLE_GROUPS, calcSessionVolume, calcVolumes, getRank, getTotalVolume } from '../lib/ranks'
+import { haptic } from '../lib/haptics'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 const isActiveToday = (lastActive) => lastActive && lastActive.split('T')[0] === todayStr()
@@ -126,6 +127,7 @@ export default function Social() {
 
   const handleLike = async (sessionId) => {
     const alreadyLiked = likes[sessionId]?.has(profile.id)
+    haptic.light()
     // Optimistic update
     setLikes(prev => {
       const next = new Set(prev[sessionId] || [])

@@ -26,12 +26,13 @@ export const saveSession = async (userId, session) => {
     date: session.date,
     duration: session.duration,
     completed_at: session.completedAt || new Date().toISOString(),
+    notes: session.notes || null,
     exercises: (session.exercises || []).map(ex => ({
       name: ex.name,
       muscle_group: ex.muscleGroup,
       sets: (ex.sets || [])
         .filter(s => s.weight && s.reps)
-        .map(s => ({ weight: +s.weight, reps: +s.reps })),
+        .map(s => ({ weight: +s.weight, reps: +s.reps, is_warmup: s.warmup || false })),
     })),
     cardio: (session.cardio || []).map(c => ({
       type: c.type,
@@ -172,7 +173,7 @@ export const deleteSession = async (sessionId, userId) => {
 
 export const updateSession = async (sessionId, userId, session) => {
   const { error } = await supabase.from('sessions')
-    .update({ date: session.date, duration: session.duration })
+    .update({ date: session.date, duration: session.duration, notes: session.notes || null })
     .eq('id', sessionId).eq('user_id', userId)
   if (error) throw error
   const { data: exRows } = await supabase.from('exercises').select('id').eq('session_id', sessionId)
@@ -189,7 +190,7 @@ export const updateSession = async (sessionId, userId, session) => {
     if (!exRow) continue
     const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
     for (let j = 0; j < validSets.length; j++) {
-      await supabase.from('sets').insert({ exercise_id: exRow.id, weight: +validSets[j].weight, reps: +validSets[j].reps, set_number: j + 1 })
+      await supabase.from('sets').insert({ exercise_id: exRow.id, weight: +validSets[j].weight, reps: +validSets[j].reps, set_number: j + 1, is_warmup: validSets[j].warmup || false })
     }
   }
   for (const c of (session.cardio || [])) {
