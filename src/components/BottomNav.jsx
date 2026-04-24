@@ -22,16 +22,16 @@ export default function BottomNav() {
         const active = loc.pathname === t.path
         const badge = t.path === '/social' ? socialBadge : 0
         return (
-          <button key={t.path} onClick={() => nav(t.path)} style={{ flex:1, background:'none', border:'none', padding:'14px 0 12px', display:'flex', flexDirection:'column', alignItems:'center', gap:'4px', color:active?'var(--accent)':'var(--text-muted)', transition:'color 0.2s ease', minHeight:56, position:'relative' }}>
+          <button key={t.path} onClick={() => nav(t.path)} style={{ flex:1, background:'none', border:'none', padding:'18px 0 14px', display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', color:active?'var(--accent)':'var(--text-muted)', transition:'color 0.2s ease', minHeight:66, position:'relative' }}>
             <span style={{ position:'relative', lineHeight:1 }}>
-              <span style={{ fontSize:'20px', display:'block', transform:active?'scale(1.18)':'scale(1)', transition:'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>{t.icon}</span>
+              <span style={{ fontSize:'22px', display:'block', transform:active?'scale(1.18)':'scale(1)', transition:'transform 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>{t.icon}</span>
               {badge > 0 && (
                 <span style={{ position:'absolute', top:-4, right:-8, background:'var(--accent)', color:'#fff', borderRadius:10, fontSize:9, fontWeight:700, minWidth:16, height:16, display:'flex', alignItems:'center', justifyContent:'center', padding:'0 4px', fontFamily:'var(--mono)', lineHeight:1 }}>
                   {badge > 9 ? '9+' : badge}
                 </span>
               )}
             </span>
-            <span style={{ fontSize:'9px', letterSpacing:'1px', fontFamily:'var(--mono)', opacity:active?1:0.6, transition:'opacity 0.2s ease' }}>{t.label}</span>
+            <span style={{ fontSize:'10px', letterSpacing:'1px', fontFamily:'var(--mono)', opacity:active?1:0.6, transition:'opacity 0.2s ease' }}>{t.label}</span>
             <div style={{ position:'absolute', bottom:0, left:'50%', width:20, height:2, borderRadius:1, background:'var(--accent)', transform:`translateX(-50%) scaleX(${active?1:0})`, transition:'transform 0.28s cubic-bezier(0.34,1.56,0.64,1)', transformOrigin:'center' }} />
           </button>
         )

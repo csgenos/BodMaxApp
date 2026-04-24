@@ -64,7 +64,7 @@ export default function Profile() {
   return (
     <div className="page" style={{ paddingBottom: 40 }}>
       {/* Header */}
-      <div style={{ padding: '52px 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: 'var(--page-top) 20px 20px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
           <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'var(--accent-low)', border: '2px solid var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>
             {profile?.name?.[0]?.toUpperCase()}
@@ -224,8 +224,14 @@ export default function Profile() {
                   <Field label="FAT (g)" style={{ flex:1 }}><input style={INP} type="number" value={form.target_fat||''} onChange={e=>setForm(f=>({...f,target_fat:e.target.value}))} /></Field>
                 </div>
                 <Field label="ACCENT COLOR">
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {ACCENTS.map(c => <button key={c} onClick={() => setForm(f => ({ ...f, accent_color: c }))} style={{ width: 36, height: 36, borderRadius: '50%', background: c, border: `2px solid ${form.accent_color === c ? '#fff' : 'transparent'}`, boxShadow: form.accent_color === c ? `0 0 0 2px ${c}` : '' }} />)}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {ACCENTS.map(c => (
+                      <button key={c} onClick={() => setForm(f => ({ ...f, accent_color: c }))} style={{ width: 36, height: 36, borderRadius: '50%', background: c, border: `2px solid ${form.accent_color === c ? '#fff' : 'transparent'}`, boxShadow: form.accent_color === c ? `0 0 0 2px ${c}` : 'none', flexShrink: 0 }} />
+                    ))}
+                    {/* Custom colour — rainbow swatch opens native picker */}
+                    <label title="Custom colour" style={{ width: 36, height: 36, borderRadius: '50%', background: 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)', border: `2px solid ${!ACCENTS.includes(form.accent_color) ? '#fff' : 'transparent'}`, boxShadow: !ACCENTS.includes(form.accent_color) ? `0 0 0 2px ${form.accent_color}` : 'none', cursor: 'pointer', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+                      <input type="color" value={form.accent_color || '#e0161e'} onChange={e => setForm(f => ({ ...f, accent_color: e.target.value }))} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                    </label>
                   </div>
                 </Field>
                 <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
