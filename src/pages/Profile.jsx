@@ -13,6 +13,7 @@ const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borde
 
 export default function Profile() {
   const { profile, setProfile, signOut, theme, toggleTheme, uiScale, setUiScale } = useAuth()
+  const unit = profile?.unit || 'lbs'
   const [sessions, setSessions] = useState([])
   const [prs, setPRs] = useState([])
   const [volumes, setVolumes] = useState({})
@@ -58,6 +59,8 @@ export default function Profile() {
         target_carbs: form.target_carbs ? +form.target_carbs : null,
         target_fat: form.target_fat ? +form.target_fat : null,
         accent_color: form.accent_color,
+        unit: form.unit || 'lbs',
+        weight: form.weight ? +form.weight : null,
       })
       if (mounted.current) { setProfile(updated); setEditing(false) }
     } catch (e) { if (mounted.current) setError(e.message) }
@@ -152,7 +155,7 @@ export default function Profile() {
                     <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 5 }}>
                       <div style={{ height: '100%', width: `${prog}%`, background: rank.color, borderRadius: 2 }} />
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{Math.round(vol).toLocaleString()} lbs</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{Math.round(vol).toLocaleString()} {unit}</div>
                   </div>
                 )
               })}
@@ -192,7 +195,7 @@ export default function Profile() {
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{pr.exercise}</span>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · {unit}</div>
                       </div>
                     </div>
                   ))}
@@ -214,6 +217,12 @@ export default function Profile() {
                     {GOALS.map(g => <ToggleBtn key={g} active={form.goal === g} onClick={() => setForm(f => ({ ...f, goal: g }))}>{g}</ToggleBtn>)}
                   </div>
                 </Field>
+                <Field label="WEIGHT UNIT">
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {['lbs', 'kg'].map(u => <ToggleBtn key={u} active={(form.unit || 'lbs') === u} onClick={() => setForm(f => ({ ...f, unit: u }))}>{u}</ToggleBtn>)}
+                  </div>
+                </Field>
+                <Field label={`BODY WEIGHT (${form.unit || 'lbs'})`}><input style={INP} type="number" inputMode="decimal" placeholder={form.unit === 'kg' ? '75' : '165'} value={form.weight || ''} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} /></Field>
                 <div style={{ display: 'flex', gap: 12 }}>
                   <Field label="CALORIES" style={{ flex: 1 }}><input style={INP} type="number" value={form.target_calories || ''} onChange={e => setForm(f => ({ ...f, target_calories: e.target.value }))} /></Field>
                   <Field label="PROTEIN (g)" style={{ flex: 1 }}><input style={INP} type="number" value={form.target_protein || ''} onChange={e => setForm(f => ({ ...f, target_protein: e.target.value }))} /></Field>

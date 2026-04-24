@@ -23,8 +23,20 @@ const MEASURE_FIELDS = [
   { key:'body_fat',    label:'Body Fat %' },
 ]
 
+const STRENGTH_STANDARDS = {
+  'Bench Press':    [0.5, 0.75, 1.0, 1.25, 1.5],
+  'Squat':          [0.75, 1.0, 1.25, 1.5, 2.0],
+  'Deadlift':       [1.0, 1.25, 1.5, 2.0, 2.5],
+  'Overhead Press': [0.35, 0.5, 0.65, 0.8, 1.0],
+  'Barbell Row':    [0.5, 0.75, 1.0, 1.25, 1.5],
+}
+const STANDARD_LABELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elite']
+const STANDARD_COLORS = ['#888', '#4a9eb5', '#22c55e', '#f59e0b', 'var(--accent)']
+
 export default function Progress() {
   const { profile, theme } = useAuth()
+  const unit = profile?.unit || 'lbs'
+  const distUnit = unit === 'kg' ? 'km' : 'mi'
   const [tab, setTab] = useState('history')
   const [weightLog, setWeightLog] = useState([])
   const [prs, setPRs] = useState([])
@@ -224,12 +236,12 @@ export default function Progress() {
       { label: '50 sessions', target: 50, Icon: DumbbellIcon },
       { label: '100 sessions', target: 100, Icon: TrophyIcon },
       { label: '500 sessions', target: 500, Icon: CrownIcon },
-      { label: '100k lbs', target: 100000, Icon: BoltIcon, vol: true },
-      { label: '500k lbs', target: 500000, Icon: RocketIcon, vol: true },
-      { label: '1M lbs', target: 1000000, Icon: StarIcon, vol: true },
+      { label: `100k ${unit}`, target: 100000, Icon: BoltIcon, vol: true },
+      { label: `500k ${unit}`, target: 500000, Icon: RocketIcon, vol: true },
+      { label: `1M ${unit}`, target: 1000000, Icon: StarIcon, vol: true },
     ]
     return { totalVol, totalSets, avgDur, currentStreak, bestStreak, weeklyAvg, topMuscle, milestones }
-  }, [sessions])
+  }, [sessions, unit])
 
   return (
     <div className="page" style={{ paddingBottom:24 }}>
@@ -252,14 +264,14 @@ export default function Progress() {
                 <button key={r} onClick={() => setHistRange(r)} style={{ flex: 1, background: histRange === r ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 100, padding: '9px 0', color: histRange === r ? '#fff' : 'var(--text-dim)', fontSize: 13, fontWeight: histRange === r ? 700 : 500 }}>{r}d</button>
               ))}
             </div>
-            <ChartCard title="WEEKLY VOLUME (k lbs)">
+            <ChartCard title={`WEEKLY VOLUME (k ${unit})`}>
               {volumeByWeek.length > 1 ? (
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={volumeByWeek}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
                     <XAxis dataKey="week" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
-                    <Tooltip {...TT} formatter={v => [`${v}k lbs`, 'Volume']} />
+                    <Tooltip {...TT} formatter={v => [`${v}k ${unit}`, 'Volume']} />
                     <Bar dataKey="vol" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -421,7 +433,7 @@ export default function Progress() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
-                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · lbs</div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · {unit}</div>
                             </div>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedPR === pr.exercise ? '▲' : '▼'}</span>
                           </div>
@@ -440,18 +452,18 @@ export default function Progress() {
                                     <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
                                     <XAxis dataKey="date" tick={{ fill: chartTheme.tick, fontSize: 8 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                                     <YAxis tick={{ fill: chartTheme.tick, fontSize: 8 }} axisLine={false} tickLine={false} domain={['dataMin - 5', 'dataMax + 5']} />
-                                    <Tooltip {...TT} formatter={v => [`${v} lbs`]} />
+                                    <Tooltip {...TT} formatter={v => [`${v} ${unit}`]} />
                                     <Line type="monotone" dataKey="1RM" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 3 }} />
                                   </LineChart>
                                 </ResponsiveContainer>
                                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                                   <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
                                     <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>FIRST</div>
-                                    <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)' }}>{prHistory[0].weight} lbs</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)' }}>{prHistory[0].weight} {unit}</div>
                                   </div>
                                   <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
                                     <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>BEST</div>
-                                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{Math.max(...prHistory.map(h=>h.weight))} lbs</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{Math.max(...prHistory.map(h=>h.weight))} {unit}</div>
                                   </div>
                                   <div style={{ flex: 1, background: 'var(--bg3)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
                                     <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>SESSIONS</div>
@@ -468,6 +480,48 @@ export default function Progress() {
                 </div>
               )
             })}
+            {/* Strength Standards */}
+            {profile?.weight ? (
+              <div style={{ marginBottom: 16 }}>
+                <div className="label" style={{ marginBottom: 4 }}>STRENGTH STANDARDS</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>Relative to bodyweight ({profile.weight} {unit})</div>
+                {Object.entries(STRENGTH_STANDARDS).map(([exercise, levels]) => {
+                  const pr = prs.find(p => p.exercise === exercise)
+                  const bw = +profile.weight
+                  const ratio = pr ? pr.weight / bw : 0
+                  const levelIdx = levels.filter(l => ratio >= l).length - 1
+                  const achieved = levelIdx >= 0 ? STANDARD_LABELS[levelIdx] : null
+                  const nextIdx = levelIdx < 4 ? levelIdx + 1 : null
+                  const nextTarget = nextIdx !== null ? Math.round(levels[nextIdx] * bw) : null
+                  return (
+                    <div key={exercise} className="card" style={{ padding: 14, marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700 }}>{exercise}</div>
+                        {achieved ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: STANDARD_COLORS[levelIdx], background: `${STANDARD_COLORS[levelIdx]}22`, padding: '3px 10px', borderRadius: 20 }}>{achieved}</span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No PR yet</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+                        {STANDARD_LABELS.map((label, i) => (
+                          <div key={label} title={`${label}: ${Math.round(levels[i] * bw)} ${unit}`} style={{ flex: 1, height: 4, borderRadius: 2, background: ratio >= levels[i] ? STANDARD_COLORS[i] : 'var(--border)' }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+                        <span>PR: {pr ? `${pr.weight} ${unit}` : '—'}</span>
+                        {nextTarget && <span>Next ({STANDARD_LABELS[nextIdx]}): {nextTarget} {unit}</span>}
+                        {!nextTarget && achieved === 'Elite' && <span style={{ color: STANDARD_COLORS[4] }}>Elite ✓</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{ marginBottom: 16, padding: '12px 14px', background: 'var(--bg3)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                Set your bodyweight in Profile to see strength standards
+              </div>
+            )}
             {showAddPR && (
               <PRModal
                 form={prForm}
@@ -483,13 +537,13 @@ export default function Progress() {
 
         {tab === 'volume' && (
           <div>
-            <ChartCard title="VOLUME BY MUSCLE (k lbs)">
+            <ChartCard title={`VOLUME BY MUSCLE (k ${unit})`}>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={volumeData} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
                   <XAxis dataKey="name" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
-                  <Tooltip {...TT} formatter={v => [`${v}k lbs`, 'Volume']} />
+                  <Tooltip {...TT} formatter={v => [`${v}k ${unit}`, 'Volume']} />
                   <Bar dataKey="vol" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -512,7 +566,7 @@ export default function Progress() {
                     <div key={bucket._label} className="card" style={{ padding:12 }}>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                         <span style={{ fontSize:13, fontWeight:700, fontFamily:'var(--mono)' }}>{bucket._label}</span>
-                        <span style={{ fontSize:11, color:'var(--accent)', fontFamily:'var(--mono)', fontWeight:700 }}>{Math.round(total).toLocaleString()} lbs</span>
+                        <span style={{ fontSize:11, color:'var(--accent)', fontFamily:'var(--mono)', fontWeight:700 }}>{Math.round(total).toLocaleString()} {unit}</span>
                       </div>
                       {present.length === 0 ? (
                         <div style={{ fontSize:11, color:'var(--text-muted)' }}>—</div>
@@ -550,7 +604,7 @@ export default function Progress() {
                     <span style={{ fontWeight: 600, fontSize: 14 }}>{g}</span>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 9, letterSpacing: '2px', color: rank.color, fontFamily: 'var(--mono)', fontWeight: 700 }}>{rank.name}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{Math.round(vol).toLocaleString()} lbs</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{Math.round(vol).toLocaleString()} {unit}</div>
                     </div>
                   </div>
                 )
@@ -567,7 +621,7 @@ export default function Progress() {
                 <div className="label" style={{ marginBottom: 10 }}>LIFETIME</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
                   <BigStat label="TOTAL SESSIONS" value={sessions.length} />
-                  <BigStat label="TOTAL VOLUME" value={`${(lifetimeStats.totalVol/1000).toFixed(1)}k`} unit="lbs" />
+                  <BigStat label="TOTAL VOLUME" value={`${(lifetimeStats.totalVol/1000).toFixed(1)}k`} unit={unit} />
                   <BigStat label="TOTAL SETS" value={lifetimeStats.totalSets.toLocaleString()} />
                   <BigStat label="AVG SESSION" value={`${Math.round(lifetimeStats.avgDur/60)}m`} />
                 </div>
@@ -610,7 +664,7 @@ export default function Progress() {
                               <span style={{ fontSize: 11, color: i === 0 ? 'var(--accent)' : 'var(--text-muted)', fontFamily: 'var(--mono)', fontWeight: 700, width: 16 }}>#{i+1}</span>
                               <div>
                                 <div style={{ fontWeight: 600, fontSize: 13 }}>{pr.exercise}</div>
-                                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.weight} lbs × {pr.reps}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.weight} {unit} × {pr.reps}</div>
                               </div>
                             </div>
                             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.est1rm}</div>

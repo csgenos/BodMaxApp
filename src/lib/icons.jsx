@@ -188,3 +188,24 @@ export const AlertIcon = ({ size = 18 }) => (
     <line x1="12" y1="16" x2="12.01" y2="16" />
   </svg>
 )
+
+export const BarcodeIcon = ({ size = 18 }) => (
+  <svg {...props(size)}>
+    <line x1="3" y1="5" x2="3" y2="19" />
+    <line x1="6" y1="5" x2="6" y2="19" />
+    <line x1="9" y1="5" x2="9" y2="19" />
+    <line x1="13" y1="5" x2="13" y2="19" />
+    <line x1="16" y1="5" x2="16" y2="19" />
+    <line x1="19" y1="5" x2="19" y2="19" />
+    <line x1="21" y1="5" x2="21" y2="19" />
+    <rect x="1" y="3" width="22" height="2" rx="1" />
+    <rect x="1" y="19" width="22" height="2" rx="1" />
+  </svg>
+)
+
+export const CopyIcon = ({ size = 18 }) => (
+  <svg {...props(size)}>
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+)

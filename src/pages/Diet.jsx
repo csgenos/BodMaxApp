@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories, getSavedMeals, saveMeal, deleteSavedMeal } from '../lib/db'
 import { searchFood } from '../lib/food'
-import { FlameIcon, CameraIcon } from '../lib/icons'
+import { FlameIcon, CameraIcon, BarcodeIcon, CopyIcon } from '../lib/icons'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
@@ -21,6 +21,8 @@ export default function Diet() {
   const [selectedFood, setSelectedFood] = useState(null)
   const [servingG, setServingG] = useState('100')
   const [savedFeedback, setSavedFeedback] = useState(null)
+  const [showBarcode, setShowBarcode] = useState(false)
+  const [copyingYesterday, setCopyingYesterday] = useState(false)
   const fileRef = useRef()
   const mounted = useRef(true)
 
@@ -134,13 +136,41 @@ export default function Diet() {
     setForm(f => ({ ...f, meal: meal.name, calories: String(meal.calories), protein: String(meal.protein || ''), carbs: String(meal.carbs || ''), fat: String(meal.fat || '') }))
   }
 
+  const handleBarcodeFound = (food) => {
+    setSelectedFood(food)
+    setServingG('100')
+    setForm(f => ({ ...f, meal: food.name }))
+    setShowBarcode(false)
+    if (!showAdd) setShowAdd(true)
+  }
+
+  const handleCopyYesterday = async () => {
+    if (copyingYesterday) return
+    const yd = new Date(); yd.setDate(yd.getDate() - 1)
+    const yStr = yd.toISOString().split('T')[0]
+    setCopyingYesterday(true); setError(null)
+    try {
+      const yEntries = await getDietByDate(profile.id, yStr)
+      if (!yEntries.length) { setError("No meals logged yesterday"); setCopyingYesterday(false); return }
+      await Promise.all(yEntries.map(e => addDietEntry(profile.id, {
+        date: todayStr(), meal: e.meal, calories: e.calories,
+        protein: e.protein, carbs: e.carbs, fat: e.fat, time: e.time,
+      })))
+      await load()
+    } catch (e) { if (mounted.current) setError(e.message) }
+    if (mounted.current) setCopyingYesterday(false)
+  }
+
   return (
     <div className="page" style={{ paddingBottom: 24 }}>
       {/* Header */}
       <div style={{ padding: 'var(--page-top) 20px 16px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h2 style={{ fontSize: 28, fontWeight: 800 }}>Nutrition</h2>
-          <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 100, padding: '10px 18px', color: '#fff', fontWeight: 700, fontSize: 14 }}>+ Log Meal</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleCopyYesterday} disabled={copyingYesterday} title="Copy yesterday's meals" style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 100, padding: '10px 14px', color: 'var(--text-dim)', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, opacity: copyingYesterday ? 0.6 : 1 }}><CopyIcon size={15} />{copyingYesterday ? '...' : 'Yesterday'}</button>
+            <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', border: 'none', borderRadius: 100, padding: '10px 18px', color: '#fff', fontWeight: 700, fontSize: 14 }}>+ Log Meal</button>
+          </div>
         </div>
         <MacroBar label="CALORIES" current={totalCal.toLocaleString()} target={(profile?.target_calories || 0).toLocaleString()} pct={calPct} color="var(--accent)" />
         <div style={{ marginTop: 10 }}>
@@ -231,6 +261,7 @@ export default function Diet() {
                   </div>
                 </div>
               )}
+              <button onClick={() => setShowBarcode(true)} style={{ width: '100%', background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><BarcodeIcon size={16} /> Scan Barcode</button>
               <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} autoFocus />
               {(searchLoading || searchResults.length > 0) && (
                 <div style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginTop: -8 }}>
@@ -294,6 +325,7 @@ export default function Diet() {
           </div>
         </div>
       )}
+      {showBarcode && <BarcodeModal onFound={handleBarcodeFound} onClose={() => setShowBarcode(false)} />}
     </div>
   )
 }
@@ -317,5 +349,120 @@ function MacroBar({ label, current, target, pct, color }) {
 function MacroBadge({ value, color }) {
   return (
     <span style={{ fontSize: 12, fontWeight: 700, color, background: `${color}22`, padding: '4px 10px', borderRadius: 20 }}>{value}</span>
+  )
+}
+
+const INP_MODAL = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
+
+function BarcodeModal({ onFound, onClose }) {
+  const [val, setVal] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [scanning, setScanning] = useState(false)
+  const videoRef = useRef()
+  const streamRef = useRef()
+  const scanFrame = useRef()
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false; stopCamera() }
+  }, [])
+
+  const stopCamera = () => {
+    if (scanFrame.current) cancelAnimationFrame(scanFrame.current)
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    if (mountedRef.current) setScanning(false)
+  }
+
+  const startCamera = async () => {
+    if (!('BarcodeDetector' in window)) return
+    try {
+      setScanning(true); setError(null)
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      streamRef.current = stream
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play() }
+      const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] })
+      const scan = async () => {
+        if (!mountedRef.current || !streamRef.current) return
+        try {
+          const codes = await detector.detect(videoRef.current)
+          if (codes.length > 0) { stopCamera(); lookup(codes[0].rawValue); return }
+        } catch {}
+        scanFrame.current = requestAnimationFrame(scan)
+      }
+      scanFrame.current = requestAnimationFrame(scan)
+    } catch { stopCamera(); setError('Camera unavailable') }
+  }
+
+  const lookup = async (code) => {
+    const trimmed = (code || '').trim()
+    if (!trimmed) return
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(trimmed)}.json`)
+      const data = await res.json()
+      if (data.status !== 1) { setError('Product not found'); setLoading(false); return }
+      const p = data.product
+      const name = p.product_name || p.product_name_en || ''
+      const brand = p.brands?.split(',')[0]?.trim() || ''
+      const label = [name, brand].filter(Boolean).join(' — ')
+      const n = p.nutriments || {}
+      onFound({
+        name: label || 'Scanned product',
+        cal100: Math.round(n['energy-kcal_100g'] || n['energy-kcal'] || 0),
+        prot100: parseFloat((+(n.proteins_100g || 0)).toFixed(1)),
+        carb100: parseFloat((+(n.carbohydrates_100g || 0)).toFixed(1)),
+        fat100: parseFloat((+(n.fat_100g || 0)).toFixed(1)),
+      })
+    } catch { setError('Lookup failed') }
+    if (mountedRef.current) setLoading(false)
+  }
+
+  const supportsDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
+      <div style={{ width: '100%', maxWidth: 400, background: 'var(--bg2)', borderRadius: 'var(--radius)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Scan Barcode</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {supportsDetector && (
+            scanning ? (
+              <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+                <video ref={videoRef} style={{ width: '100%', height: 200, objectFit: 'cover', display: 'block' }} playsInline muted />
+                <div style={{ position: 'absolute', inset: 0, border: '2px solid var(--accent)', borderRadius: 8, pointerEvents: 'none' }} />
+                <button onClick={stopCamera} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: 32, height: 32, fontSize: 18 }}>×</button>
+                <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: 20, whiteSpace: 'nowrap' }}>Point at barcode…</div>
+              </div>
+            ) : (
+              <button onClick={startCamera} style={{ width: '100%', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 13, color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <BarcodeIcon size={18} /> Open Camera
+              </button>
+            )
+          )}
+          <div style={{ fontSize: 11, textAlign: 'center', color: 'var(--text-muted)' }}>{supportsDetector ? 'or enter barcode manually' : 'Enter barcode number'}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              style={{ ...INP_MODAL, flex: 1 }}
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 5449000000996"
+              value={val}
+              onChange={e => setVal(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && lookup(val)}
+              autoFocus={!supportsDetector}
+            />
+            <button onClick={() => lookup(val)} disabled={loading || !val.trim()} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0 18px', color: '#fff', fontWeight: 700, fontSize: 14, opacity: (!val.trim() || loading) ? 0.6 : 1 }}>
+              {loading ? '…' : 'GO'}
+            </button>
+          </div>
+          {error && <div style={{ fontSize: 12, color: 'var(--accent)', textAlign: 'center' }}>{error}</div>}
+        </div>
+      </div>
+    </div>
   )
 }

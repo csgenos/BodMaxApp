@@ -9,6 +9,7 @@ const todayDate = () => new Date().toISOString().split('T')[0]
 
 export default function Dashboard() {
   const { profile } = useAuth()
+  const unit = profile?.unit || 'lbs'
   const [sessions, setSessions] = useState([])
   const [volumes, setVolumes] = useState({})
   const [todayDiet, setTodayDiet] = useState([])
@@ -167,7 +168,7 @@ export default function Dashboard() {
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: 600, marginBottom: 4 }}>Latest PR</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{latestPR.exercise}</div>
               <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', marginTop: 2 }}>
-                {latestPR.weight} lbs × {latestPR.reps} reps
+                {latestPR.weight} {unit} × {latestPR.reps} reps
               </div>
             </div>
             <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
@@ -191,7 +192,7 @@ export default function Dashboard() {
                     #{i + 1}
                   </span>
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{Math.round(vol).toLocaleString()} lbs</div>
+                <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{Math.round(vol).toLocaleString()} {unit}</div>
               </div>
             )
           })}
@@ -232,7 +233,7 @@ export default function Dashboard() {
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{groups.join(', ') || 'Workout'}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                      {(s.exercises || []).length} exercises · {Math.round(vol).toLocaleString()} lbs{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
+                      {(s.exercises || []).length} exercises · {Math.round(vol).toLocaleString()} {unit}{s.duration ? ` · ${Math.floor(s.duration / 60)}m` : ''}
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0, marginLeft: 12 }}>
