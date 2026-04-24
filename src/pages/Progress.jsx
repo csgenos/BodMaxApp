@@ -192,12 +192,52 @@ export default function Progress() {
     MUSCLE_GROUPS.map(g => ({ name: g.slice(0, 4).toUpperCase(), vol: Math.round((volumes[g] || 0) / 1000 * 10) / 10 })),
     [volumes])
 
+  const lifetimeStats = useMemo(() => {
+    if (!sessions.length) return null
+    const totalVol = sessions.reduce((s, sess) => s + calcSessionVolume(sess), 0)
+    const totalSets = sessions.reduce((s, sess) => s + (sess.exercises||[]).reduce((e, ex) => e + (ex.sets||[]).filter(st=>st.weight&&st.reps).length, 0), 0)
+    const avgDur = sessions.filter(s=>s.duration).reduce((s,sess)=>s+(sess.duration||0),0) / (sessions.filter(s=>s.duration).length||1)
+    // Streaks
+    const dateSet = new Set(sessions.map(s=>s.date?.split('T')[0]))
+    const today = new Date(); today.setHours(0,0,0,0)
+    let currentStreak = 0, d = new Date(today)
+    while (dateSet.has(d.toISOString().split('T')[0])) { currentStreak++; d.setDate(d.getDate()-1) }
+    let bestStreak = 0, streak = 0
+    const sorted = [...dateSet].sort()
+    for (let i = 0; i < sorted.length; i++) {
+      if (i === 0) { streak = 1; continue }
+      const prev = new Date(sorted[i-1]); prev.setDate(prev.getDate()+1)
+      streak = prev.toISOString().split('T')[0] === sorted[i] ? streak+1 : 1
+      bestStreak = Math.max(bestStreak, streak)
+    }
+    bestStreak = Math.max(bestStreak, currentStreak)
+    // Weekly avg
+    const weeks = new Set(sessions.map(s => { const d2=new Date(s.date); const ws=new Date(d2); ws.setDate(d2.getDate()-d2.getDay()); return ws.toISOString().split('T')[0] }))
+    const weeklyAvg = weeks.size ? (sessions.length / weeks.size) : 0
+    // Most trained muscle
+    const muscleCount = {}
+    sessions.forEach(s => (s.exercises||[]).forEach(ex => { const g = ex.muscle_group||ex.muscleGroup; if(g) muscleCount[g]=(muscleCount[g]||0)+1 }))
+    const topMuscle = Object.entries(muscleCount).sort((a,b)=>b[1]-a[1])[0]
+    // Milestones
+    const milestones = [
+      { label: '1st session', target: 1, icon: '🎯' },
+      { label: '10 sessions', target: 10, icon: '🔥' },
+      { label: '50 sessions', target: 50, icon: '💪' },
+      { label: '100 sessions', target: 100, icon: '🏆' },
+      { label: '500 sessions', target: 500, icon: '👑' },
+      { label: '100k lbs', target: 100000, icon: '⚡', vol: true },
+      { label: '500k lbs', target: 500000, icon: '🚀', vol: true },
+      { label: '1M lbs', target: 1000000, icon: '🌟', vol: true },
+    ]
+    return { totalVol, totalSets, avgDur, currentStreak, bestStreak, weeklyAvg, topMuscle, milestones }
+  }, [sessions])
+
   return (
     <div className="page" style={{ paddingBottom:24 }}>
       <div style={{ padding:'var(--page-top) 20px 16px' }}>
         <h2 style={{ fontSize:28, fontWeight:800, marginBottom:16 }}>Progress</h2>
         <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:4 }}>
-          {[['history','History'],['weight','Weight'],['body','Body'],['prs','Prs'],['volume','Volume']].map(([key,label]) => (
+          {[['history','History'],['weight','Weight'],['body','Body'],['prs','PRs'],['volume','Volume'],['stats','Stats']].map(([key,label]) => (
             <button key={key} onClick={()=>setTab(key)} style={{ background:tab===key?'var(--accent)':'var(--bg3)', border:'none', borderRadius:100, padding:'9px 18px', color:tab===key?'#fff':'var(--text-dim)', fontSize:14, fontWeight:tab===key?700:500, whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>
           ))}
         </div>
@@ -519,7 +559,141 @@ export default function Progress() {
             </div>
           </div>
         )}
+
+        {tab === 'stats' && (
+          <div>
+            {!lifetimeStats ? <Empty>Complete a session to see your stats</Empty> : (
+              <>
+                {/* Overview */}
+                <div className="label" style={{ marginBottom: 10 }}>LIFETIME</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                  <BigStat label="TOTAL SESSIONS" value={sessions.length} />
+                  <BigStat label="TOTAL VOLUME" value={`${(lifetimeStats.totalVol/1000).toFixed(1)}k`} unit="lbs" />
+                  <BigStat label="TOTAL SETS" value={lifetimeStats.totalSets.toLocaleString()} />
+                  <BigStat label="AVG SESSION" value={`${Math.round(lifetimeStats.avgDur/60)}m`} />
+                </div>
+
+                {/* Streaks */}
+                <div className="label" style={{ marginBottom: 10 }}>STREAKS</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                  <div className="card" style={{ padding: '16px 14px', textAlign: 'center', background: lifetimeStats.currentStreak > 0 ? 'var(--accent)' : undefined }}>
+                    <div style={{ fontSize: 11, color: lifetimeStats.currentStreak > 0 ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 6 }}>CURRENT</div>
+                    <div style={{ fontSize: 36, fontWeight: 800, color: lifetimeStats.currentStreak > 0 ? '#fff' : 'var(--text)', fontFamily: 'var(--mono)' }}>{lifetimeStats.currentStreak}</div>
+                    <div style={{ fontSize: 10, color: lifetimeStats.currentStreak > 0 ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}>days in a row</div>
+                  </div>
+                  <div className="card" style={{ padding: '16px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 6 }}>BEST EVER</div>
+                    <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{lifetimeStats.bestStreak}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>days in a row</div>
+                  </div>
+                </div>
+
+                {/* Averages */}
+                <div className="label" style={{ marginBottom: 10 }}>AVERAGES</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+                  <StatCard label="Per Week" value={lifetimeStats.weeklyAvg.toFixed(1)} />
+                  <StatCard label="Top Muscle" value={lifetimeStats.topMuscle?.[0]?.slice(0,4) || '—'} />
+                  <StatCard label="PRs Set" value={prs.length} />
+                </div>
+
+                {/* Top PRs by estimated 1RM */}
+                {prs.length > 0 && (
+                  <>
+                    <div className="label" style={{ marginBottom: 10 }}>TOP LIFTS (EST. 1RM)</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+                      {[...prs]
+                        .map(pr => ({ ...pr, est1rm: Math.round(pr.weight * (1 + pr.reps / 30)) }))
+                        .sort((a, b) => b.est1rm - a.est1rm)
+                        .slice(0, 5)
+                        .map((pr, i) => (
+                          <div key={pr.id} className="card" style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 11, color: i === 0 ? 'var(--accent)' : 'var(--text-muted)', fontFamily: 'var(--mono)', fontWeight: 700, width: 16 }}>#{i+1}</span>
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: 13 }}>{pr.exercise}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.weight} lbs × {pr.reps}</div>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.est1rm}</div>
+                          </div>
+                        ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Milestones */}
+                <div className="label" style={{ marginBottom: 10 }}>MILESTONES</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  {lifetimeStats.milestones.map(m => {
+                    const val = m.vol ? lifetimeStats.totalVol : sessions.length
+                    const earned = val >= m.target
+                    return (
+                      <div key={m.label} className="card" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, opacity: earned ? 1 : 0.4 }}>
+                        <span style={{ fontSize: 22 }}>{m.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: earned ? 'var(--text)' : 'var(--text-muted)' }}>{m.label}</div>
+                          {earned && <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--mono)', fontWeight: 700 }}>UNLOCKED</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Export */}
+                <div className="label" style={{ margin: '20px 0 10px' }}>DATA EXPORT</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => exportCSV('sessions', sessions, prs)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 0', color: 'var(--text-dim)', fontWeight: 700, fontSize: 12, letterSpacing: '1px' }}>SESSIONS CSV</button>
+                  <button onClick={() => exportCSV('prs', sessions, prs)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 0', color: 'var(--text-dim)', fontWeight: 700, fontSize: 12, letterSpacing: '1px' }}>PRs CSV</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
+
+function exportCSV(type, sessions, prs) {
+  let csv, filename
+  if (type === 'sessions') {
+    const rows = [['Date','Duration (min)','Exercises','Sets','Volume (lbs)','Notes']]
+    sessions.forEach(s => {
+      const vol = Math.round(s.exercises?.reduce((t,ex)=>(ex.sets||[]).reduce((e,st)=>e+(st.is_warmup?0:(+st.weight||0)*(+st.reps||0)),t),0)||0)
+      const sets = s.exercises?.reduce((t,ex)=>(ex.sets||[]).filter(st=>st.weight&&st.reps).length+t,0)||0
+      rows.push([
+        s.date?.split('T')[0] || '',
+        s.duration ? Math.round(s.duration/60) : '',
+        s.exercises?.length || 0,
+        sets,
+        vol,
+        (s.notes||'').replace(/,/g,' '),
+      ])
+    })
+    csv = rows.map(r => r.join(',')).join('\n')
+    filename = 'bodmax-sessions.csv'
+  } else {
+    const rows = [['Exercise','Muscle Group','Weight (lbs)','Reps','Est 1RM','Date']]
+    prs.forEach(pr => rows.push([
+      pr.exercise, pr.muscle_group, pr.weight, pr.reps,
+      Math.round(pr.weight*(1+pr.reps/30)),
+      pr.date?.split('T')[0]||'',
+    ]))
+    csv = rows.map(r => r.join(',')).join('\n')
+    filename = 'bodmax-prs.csv'
+  }
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function BigStat({ label, value, unit }) {
+  return (
+    <div className="card" style={{ padding: '16px 14px', textAlign: 'center' }}>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)', lineHeight: 1 }}>{value}</div>
+      {unit && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{unit}</div>}
     </div>
   )
 }
