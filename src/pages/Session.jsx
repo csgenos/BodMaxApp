@@ -10,6 +10,7 @@ import { getNotifPermission, requestNotifPermission, showTimerNotification, subs
 import { haptic } from '../lib/haptics'
 import { audio } from '../lib/audio'
 import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, MedalIcon, CameraIcon, EditIcon, TrashIcon, ListIcon, BikeIcon } from '../lib/icons'
+import { estimateCalories } from '../lib/food'
 
 const REP_RANGE_KEY = 'bm_rep_ranges'
 const getRepRanges = () => { try { return JSON.parse(localStorage.getItem(REP_RANGE_KEY) || '{}') } catch { return {} } }
@@ -931,6 +932,15 @@ function CardioModal({ onAdd, onClose }) {
         <input style={INP} type="number" placeholder="Duration (minutes) *" value={duration} onChange={e => setDuration(e.target.value)} />
         <input style={INP} type="number" placeholder="Distance (miles) — optional" value={distance} onChange={e => setDistance(e.target.value)} />
         <input style={INP} type="number" placeholder="Calories burned — optional" value={calories} onChange={e => setCalories(e.target.value)} />
+        {!calories && type && duration && (
+          <button
+            type="button"
+            onClick={() => setCalories(String(estimateCalories(type, +duration)))}
+            style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, padding: '4px 0', textAlign: 'left', fontWeight: 600 }}
+          >
+            Use est. {estimateCalories(type, +duration)} kcal (MET · 70kg)
+          </button>
+        )}
       </div>
       <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
     </Modal>

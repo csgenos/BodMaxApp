@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories } from '../lib/db'
+import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories, getSavedMeals, saveMeal, deleteSavedMeal } from '../lib/db'
+import { searchFood } from '../lib/food'
 import { FlameIcon, CameraIcon } from '../lib/icons'
 
 const todayStr = () => new Date().toISOString().split('T')[0]
@@ -14,6 +15,12 @@ export default function Diet() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [cardioCalories, setCardioCalories] = useState(0)
+  const [savedMeals, setSavedMeals] = useState([])
+  const [searchResults, setSearchResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedFood, setSelectedFood] = useState(null)
+  const [servingG, setServingG] = useState('100')
+  const [savedFeedback, setSavedFeedback] = useState(null)
   const fileRef = useRef()
   const mounted = useRef(true)
 
@@ -35,7 +42,27 @@ export default function Diet() {
     if (!profile) return
     load()
     getTodayCardioCalories(profile.id).then(c => { if (mounted.current) setCardioCalories(c) }).catch(() => {})
+    getSavedMeals(profile.id).then(m => { if (mounted.current) setSavedMeals(m) }).catch(() => {})
   }, [profile?.id])
+
+  useEffect(() => {
+    const q = form.meal?.trim()
+    if (!q || q.length < 2) { setSearchResults([]); setSearchLoading(false); return }
+    setSearchLoading(true)
+    searchFood(q).then(results => { setSearchResults(results); setSearchLoading(false) })
+  }, [form.meal])
+
+  useEffect(() => {
+    if (!selectedFood || !servingG || +servingG <= 0) return
+    const f = +servingG / 100
+    setForm(prev => ({
+      ...prev,
+      calories: String(Math.round(selectedFood.cal100 * f)),
+      protein: String(parseFloat((selectedFood.prot100 * f).toFixed(1))),
+      carbs: String(parseFloat((selectedFood.carb100 * f).toFixed(1))),
+      fat: String(parseFloat((selectedFood.fat100 * f).toFixed(1))),
+    }))
+  }, [servingG, selectedFood])
 
   const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
   const totalProt = entries.reduce((s, e) => s + (e.protein || 0), 0)
@@ -71,6 +98,9 @@ export default function Diet() {
       if (mounted.current) {
         setForm({ meal: '', calories: '', protein: '', carbs: '', fat: '', photo: null })
         setShowAdd(false)
+        setSelectedFood(null)
+        setServingG('100')
+        setSearchResults([])
         await load()
       }
     } catch (e) {
@@ -82,6 +112,26 @@ export default function Diet() {
   const handleDelete = async id => {
     try { await deleteDietEntry(profile.id, id); if (mounted.current) await load() }
     catch (e) { if (mounted.current) setError(e.message) }
+  }
+
+  const handleSaveMeal = async (entry) => {
+    try {
+      await saveMeal(profile.id, { name: entry.meal, calories: entry.calories, protein: entry.protein, carbs: entry.carbs, fat: entry.fat })
+      setSavedMeals(await getSavedMeals(profile.id))
+      setSavedFeedback(entry.id)
+      setTimeout(() => setSavedFeedback(null), 1500)
+    } catch (e) { if (mounted.current) setError(e.message) }
+  }
+
+  const handleDeleteSavedMeal = async (id) => {
+    try { await deleteSavedMeal(profile.id, id); setSavedMeals(await getSavedMeals(profile.id)) }
+    catch (e) { if (mounted.current) setError(e.message) }
+  }
+
+  const handleSelectSavedMeal = (meal) => {
+    setSelectedFood(null)
+    setServingG('100')
+    setForm(f => ({ ...f, meal: meal.name, calories: String(meal.calories), protein: String(meal.protein || ''), carbs: String(meal.carbs || ''), fat: String(meal.fat || '') }))
   }
 
   return (
@@ -135,7 +185,15 @@ export default function Diet() {
                   <div style={{ fontWeight: 700, fontSize: 16 }}>{entry.meal}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{entry.time}</div>
                 </div>
-                <button onClick={() => handleDelete(entry.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 18, padding: '0 0 0 8px' }}>×</button>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <button onClick={() => handleDelete(entry.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 18, padding: '0 0 0 8px' }}>×</button>
+                  <button
+                    onClick={() => handleSaveMeal(entry)}
+                    style={{ background: 'none', border: 'none', color: savedFeedback === entry.id ? '#22c55e' : 'var(--text-muted)', fontSize: 12, padding: '0 0 0 8px', fontWeight: 700, fontFamily: 'var(--mono)' }}
+                  >
+                    {savedFeedback === entry.id ? 'SAVED' : 'SAVE'}
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <MacroBadge value={`${entry.calories} cal`} color="var(--accent)" />
@@ -157,7 +215,58 @@ export default function Diet() {
               <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
             </div>
             <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {savedMeals.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 9, letterSpacing: '4px', color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>SAVED MEALS</div>
+                  <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                    {savedMeals.map(m => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 10px 6px 12px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleSelectSavedMeal(m)}
+                          style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 12, fontWeight: 600, padding: 0 }}
+                        >{m.name} <span style={{ color: 'var(--accent)', fontFamily: 'var(--mono)', fontSize: 10 }}>{m.calories}cal</span></button>
+                        <button onClick={() => handleDeleteSavedMeal(m.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 14, padding: '0 0 0 4px', lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} autoFocus />
+              {(searchLoading || searchResults.length > 0) && (
+                <div style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginTop: -8 }}>
+                  {searchLoading && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)' }}>Searching...</div>}
+                  {searchResults.map((r, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setSelectedFood(r); setServingG('100'); setForm(f => ({ ...f, meal: r.name })); setSearchResults([]) }}
+                      style={{ width: '100%', background: 'none', border: 'none', borderTop: i > 0 ? '1px solid var(--border)' : 'none', padding: '10px 14px', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{r.name}</div>
+                        {r.brand && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{r.brand}</div>}
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{r.cal100} cal</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>P:{r.prot100}g per 100g</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedFood && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg3)', border: '1px solid var(--accent)', borderRadius: 'var(--radius-sm)', padding: '10px 14px' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-dim)', flexShrink: 0 }}>Serving:</span>
+                  <input
+                    style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontWeight: 700, fontSize: 15, width: 60, fontFamily: 'var(--mono)', outline: 'none' }}
+                    type="number"
+                    inputMode="decimal"
+                    value={servingG}
+                    onChange={e => setServingG(e.target.value)}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>g</span>
+                  <button onClick={() => { setSelectedFood(null); setServingG('100') }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 13 }}>Clear</button>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 10 }}>
                 <input style={INP} type="number" placeholder="Calories *" value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} />
                 <input style={INP} type="number" placeholder="Protein (g)" value={form.protein} onChange={e => setForm(f => ({ ...f, protein: e.target.value }))} />
