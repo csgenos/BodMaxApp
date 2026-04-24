@@ -44,7 +44,7 @@ export default function Profile() {
   const progress = getRankProgress(totalVol)
   const nextTier = getNextTier(totalVol)
   const streak = useMemo(() => calcStreak(sessions), [sessions])
-  const achievements = useMemo(() => getAchievements(sessions, prs, streak.best), [sessions, prs, streak.best])
+  const achievements = useMemo(() => getAchievements(sessions, prs, streak.best, { beta: profile?.beta }), [sessions, prs, streak.best, profile?.beta])
   const earnedCount = achievements.filter(a => a.earned).length
 
   const saveProfile = async () => {
@@ -75,10 +75,15 @@ export default function Profile() {
           <div>
             <div style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>{profile?.name}</div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>@{profile?.username}</div>
-            <div style={{ marginTop: 6 }}>
+            <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
                 Goal: {profile?.goal ? profile.goal.charAt(0).toUpperCase() + profile.goal.slice(1) : '—'}
               </span>
+              {profile?.beta && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.9)', color: 'var(--accent)', letterSpacing: '0.5px' }}>
+                  BETA
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -158,13 +163,13 @@ export default function Profile() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               {achievements.filter(a => a.earned).map(a => (
                 <div key={a.id} style={{ background: 'var(--accent)', borderRadius: 'var(--radius)', padding: '16px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}>
-                  <span style={{ fontSize: 24 }}>{a.icon}</span>
+                  <span style={{ color: '#fff' }}>{a.Icon && <a.Icon size={24} />}</span>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{a.label}</div>
                 </div>
               ))}
               {achievements.filter(a => !a.earned).map(a => (
                 <div key={a.id} style={{ background: 'var(--bg3)', borderRadius: 'var(--radius)', padding: '16px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', opacity: 0.4 }}>
-                  <span style={{ fontSize: 24, filter: 'grayscale(1)' }}>{a.icon}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{a.Icon && <a.Icon size={24} />}</span>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', lineHeight: 1.3 }}>{a.label}</div>
                 </div>
               ))}

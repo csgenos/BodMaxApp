@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { getSessions, getDietByDate, getPRs } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
 import { calcStreak, sessionsThisWeek, sessionsLastWeek, weeklyVolume } from '../lib/streaks'
+import { FlameIcon, ZzzIcon, TrophyIcon, AlertIcon } from '../lib/icons'
 
 const todayDate = () => new Date().toISOString().split('T')[0]
 
@@ -49,6 +50,25 @@ export default function Dashboard() {
   const carbPct = Math.min(100, profile?.target_carbs ? Math.round(totalCarbs / profile.target_carbs * 100) : 0)
   const fatPct = Math.min(100, profile?.target_fat ? Math.round(totalFat / profile.target_fat * 100) : 0)
 
+  const muscleFreq = useMemo(() => MUSCLE_GROUPS.map(g => {
+    const last = sessions.find(s => (s.exercises || []).some(ex => (ex.muscle_group || ex.muscleGroup) === g))
+    const days = last ? Math.floor((Date.now() - new Date(last.date)) / 86400000) : null
+    return { group: g, days }
+  }), [sessions])
+
+  const daysSinceLast = useMemo(() => {
+    if (!sessions.length) return null
+    return Math.floor((Date.now() - new Date(sessions[0].date)) / 86400000)
+  }, [sessions])
+
+  const roasterMsg = useMemo(() => {
+    if (daysSinceLast === null || daysSinceLast < 2) return null
+    if (daysSinceLast >= 7) return "Over a week away. The gym filed a missing persons report."
+    if (daysSinceLast >= 5) return `${daysSinceLast} days off. Your gains are evaporating.`
+    if (daysSinceLast >= 3) return `${daysSinceLast} days since your last session. Don't let the momentum die.`
+    return `${daysSinceLast} days off — the rest day stretched into two. Time to get back.`
+  }, [daysSinceLast])
+
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const sessionDiff = thisWeek - lastWeek
@@ -61,7 +81,7 @@ export default function Dashboard() {
     if (!hasSplit) return null
     const todayMuscles = split.days[new Date().getDay()] ?? null
     if (todayMuscles === null) return "It's rest day — recovery is training too."
-    if (todayMuscles.length === 0) return "Workout day — get to the gym 💪"
+    if (todayMuscles.length === 0) return "Workout day — get to the gym"
     return `Today: ${todayMuscles.join(' & ')}`
   })()
 
@@ -82,10 +102,18 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Session roaster */}
+      {roasterMsg && (
+        <div style={{ margin: '0 20px 16px', padding: '12px 16px', background: 'rgba(224,22,30,0.08)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }}><AlertIcon size={16} /></span>
+          <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>{roasterMsg}</span>
+        </div>
+      )}
+
       {/* Weekly stats */}
       <div style={{ padding: '0 20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
         <StatCard>
-          <div style={{ fontSize: 28 }}>{streak.current > 0 ? '🔥' : '💤'}</div>
+          <span style={{ color: streak.current > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{streak.current > 0 ? <FlameIcon size={24} /> : <ZzzIcon size={24} />}</span>
           <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{streak.current}</div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Streak</div>
         </StatCard>
@@ -142,8 +170,8 @@ export default function Dashboard() {
                 {latestPR.weight} lbs × {latestPR.reps} reps
               </div>
             </div>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
-              🏆
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+              <TrophyIcon size={24} />
             </div>
           </div>
         </Section>
@@ -170,11 +198,29 @@ export default function Dashboard() {
         </div>
       </Section>
 
+      {/* Muscle Frequency */}
+      {sessions.length > 0 && (
+        <Section label="Muscle Frequency">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {muscleFreq.map(({ group, days }) => {
+              const color = days === null ? 'var(--text-muted)' : days <= 3 ? '#22c55e' : days <= 6 ? '#f59e0b' : 'var(--accent)'
+              const label = days === null ? 'Never' : days === 0 ? 'Today' : days === 1 ? 'Yesterday' : `${days}d ago`
+              return (
+                <div key={group} className="card" style={{ padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{group}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'var(--mono)' }}>{label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      )}
+
       {/* Recent Activity */}
       <Section label="Recent Activity">
         {recent.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-dim)', fontSize: 14 }}>
-            No sessions yet — start lifting 💪
+            No sessions yet — start lifting
           </div>
         ) : (
           <div className="card" style={{ overflow: 'hidden' }}>
