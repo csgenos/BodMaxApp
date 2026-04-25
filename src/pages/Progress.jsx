@@ -209,7 +209,7 @@ export default function Progress() {
     const totalSets = sessions.reduce((s, sess) => s + (sess.exercises||[]).reduce((e, ex) => e + (ex.sets||[]).filter(st=>st.weight&&st.reps).length, 0), 0)
     const avgDur = sessions.filter(s=>s.duration).reduce((s,sess)=>s+(sess.duration||0),0) / (sessions.filter(s=>s.duration).length||1)
     // Streaks
-    const dateSet = new Set(sessions.map(s=>s.date?.split('T')[0]))
+    const dateSet = new Set(sessions.filter(s=>s.date).map(s=>s.date.split('T')[0]))
     const today = new Date(); today.setHours(0,0,0,0)
     let currentStreak = 0, d = new Date(today)
     while (dateSet.has(d.toISOString().split('T')[0])) { currentStreak++; d.setDate(d.getDate()-1) }
@@ -223,7 +223,7 @@ export default function Progress() {
     }
     bestStreak = Math.max(bestStreak, currentStreak)
     // Weekly avg
-    const weeks = new Set(sessions.map(s => { const d2=new Date(s.date); const ws=new Date(d2); ws.setDate(d2.getDate()-d2.getDay()); return ws.toISOString().split('T')[0] }))
+    const weeks = new Set(sessions.filter(s=>s.date).map(s => { const d2=new Date(s.date); const ws=new Date(d2); ws.setDate(d2.getDate()-d2.getDay()); return ws.toISOString().split('T')[0] }))
     const weeklyAvg = weeks.size ? (sessions.length / weeks.size) : 0
     // Most trained muscle
     const muscleCount = {}
@@ -293,7 +293,7 @@ export default function Progress() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
               <StatCard label="Sessions" value={sessions.length} />
               <StatCard label="PRs" value={prs.length} />
-              <StatCard label="Member" value={profile?.created_at ? `Since ${new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: "'yy" })}` : '—'} />
+              <StatCard label="Member" value={profile?.created_at ? `Since ${new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}` : '—'} />
             </div>
           </div>
         )}

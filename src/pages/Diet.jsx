@@ -67,6 +67,13 @@ export default function Diet() {
     }))
   }, [servingG, selectedFood])
 
+  useEffect(() => {
+    const el = document.getElementById('scroll-root')
+    if (!el) return
+    el.style.overflow = showAdd ? 'hidden' : ''
+    return () => { el.style.overflow = '' }
+  }, [showAdd])
+
   const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
   const totalProt = entries.reduce((s, e) => s + (e.protein || 0), 0)
   const totalCarbs = entries.reduce((s, e) => s + (e.carbs || 0), 0)

@@ -109,6 +109,13 @@ export default function Session() {
     return () => clearInterval(timer.current)
   }, [!!active, isEditing])
 
+  useEffect(() => {
+    const el = document.getElementById('scroll-root')
+    if (!el) return
+    el.style.overflow = showPicker ? 'hidden' : ''
+    return () => { el.style.overflow = '' }
+  }, [showPicker])
+
   const elapsed = active?.startTime ? Math.max(0, Math.floor((Date.now() - active.startTime) / 1000)) : 0
 
   const startSession = () => {

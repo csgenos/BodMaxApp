@@ -55,7 +55,7 @@ function Inner() {
   return (
     <BrowserRouter>
       <div style={{ maxWidth: 480, margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+        <div id="scroll-root" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ zoom: uiScale }}>
           <Suspense fallback={<PageLoader />}>
           <ErrorBoundary>
