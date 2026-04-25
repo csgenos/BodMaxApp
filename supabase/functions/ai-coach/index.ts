@@ -47,9 +47,8 @@ async function callClaude(system: string, userMessage: string, maxTokens = 700):
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-7',
+      model: 'claude-haiku-4-5',
       max_tokens: maxTokens,
-      thinking: { type: 'adaptive' },
       system,
       messages: [{ role: 'user', content: userMessage }],
     }),
@@ -223,9 +222,8 @@ Recent training: ${recentGroups || 'no history'}`
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'claude-opus-4-7',
+          model: 'claude-haiku-4-5',
           max_tokens: 400,
-          thinking: { type: 'adaptive' },
           system,
           messages: historyMessages,
         }),
