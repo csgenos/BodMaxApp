@@ -54,7 +54,7 @@ file_size_limit = "50MiB"
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["https://127.0.0.1:5173"]
+additional_redirect_urls = ["https://127.0.0.1:5173", "https://getbodmax.com", "https://www.getbodmax.com"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10

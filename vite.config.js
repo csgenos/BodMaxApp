@@ -19,6 +19,8 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
+        scope: '/',
+        id: 'https://getbodmax.com/',
         icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }],
         shortcuts: [
           { name: 'Start Session', short_name: 'Train', description: 'Log a workout', url: '/session', icons: [{ src: '/icon.svg', sizes: 'any' }] },

@@ -52,7 +52,7 @@ serve(async (req) => {
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;">
         <div style="width:10px;height:10px;border-radius:50%;background:#e0161e;"></div>
-        <span style="font-weight:800;font-size:18px;letter-spacing:-0.5px;">BodMax</span>
+        <a href="https://getbodmax.com" style="font-weight:800;font-size:18px;letter-spacing:-0.5px;color:#111;text-decoration:none;">BodMax</a>
       </div>
       <h2 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#111;">New Feedback</h2>
       ${rating
