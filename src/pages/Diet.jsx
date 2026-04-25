@@ -71,8 +71,8 @@ export default function Diet() {
   useEffect(() => {
     const el = document.getElementById('scroll-root')
     if (!el) return
-    el.style.overflow = showAdd ? 'hidden' : ''
-    return () => { el.style.overflow = '' }
+    el.style.overflowY = showAdd ? 'hidden' : 'auto'
+    return () => { el.style.overflowY = 'auto' }
   }, [showAdd])
 
   const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
@@ -376,8 +376,8 @@ function BarcodeModal({ onFound, onClose }) {
   useEffect(() => {
     const el = document.getElementById('scroll-root')
     if (!el) return
-    el.style.overflow = 'hidden'
-    return () => { el.style.overflow = '' }
+    el.style.overflowY = 'hidden'
+    return () => { el.style.overflowY = 'auto' }
   }, [])
 
   const stopCamera = useCallback(() => {

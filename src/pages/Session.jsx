@@ -113,8 +113,8 @@ export default function Session() {
   useEffect(() => {
     const el = document.getElementById('scroll-root')
     if (!el) return
-    el.style.overflow = showPicker ? 'hidden' : ''
-    return () => { el.style.overflow = '' }
+    el.style.overflowY = showPicker ? 'hidden' : 'auto'
+    return () => { el.style.overflowY = 'auto' }
   }, [showPicker])
 
   const elapsed = active?.startTime ? Math.max(0, Math.floor((Date.now() - active.startTime) / 1000)) : 0
@@ -1161,8 +1161,8 @@ function Modal({ children, onClose, title }) {
   useEffect(() => {
     const el = document.getElementById('scroll-root')
     if (!el) return
-    el.style.overflow = 'hidden'
-    return () => { el.style.overflow = '' }
+    el.style.overflowY = 'hidden'
+    return () => { el.style.overflowY = 'auto' }
   }, [])
   return createPortal(
     <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
