@@ -18,7 +18,7 @@ serve(async (req) => {
       return json({ error: 'Stripe not configured' }, 500)
     }
 
-    const appUrl = Deno.env.get('APP_URL') || 'https://bodmax.app'
+    const appUrl = Deno.env.get('APP_URL') || 'https://getbodmax.com'
     const params = new URLSearchParams({
       mode: 'subscription',
       'line_items[0][price]': STRIPE_PRICE_ID,

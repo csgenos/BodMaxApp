@@ -37,3 +37,14 @@ jobs:
           else
             echo "No edge functions to deploy; skipping."
           fi
+
+      - name: Set Edge Function Secrets
+        run: |
+          supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" \
+            ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+            STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
+            STRIPE_PRICE_ID="${{ secrets.STRIPE_PRICE_ID }}" \
+            STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
+            FEEDBACK_EMAIL="${{ secrets.FEEDBACK_EMAIL }}" \
+            RESEND_API_KEY="${{ secrets.RESEND_API_KEY }}" \
+            APP_URL="https://getbodmax.com"
