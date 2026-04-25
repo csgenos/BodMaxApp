@@ -168,6 +168,25 @@ export default function Dashboard() {
         </div>
       </Section>
 
+      {/* AI Coach Insight */}
+      {coachInsight && (
+        <Section label="AI Coach">
+          <div
+            onClick={() => nav('/coach')}
+            style={{ background: 'var(--bg2)', borderLeft: '3px solid var(--accent)', borderRadius: 'var(--radius)', padding: '14px 16px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+          >
+            <span style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }}><SparkleIcon size={18} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{coachInsight.headline}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{coachInsight.body}</div>
+              {coachInsight.action && (
+                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginTop: 6 }}>→ {coachInsight.action}</div>
+              )}
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Latest PR */}
       {latestPR && (
         <Section label="Latest PR">
@@ -221,25 +240,6 @@ export default function Dashboard() {
                 </div>
               )
             })}
-          </div>
-        </Section>
-      )}
-
-      {/* AI Coach Insight */}
-      {coachInsight && (
-        <Section label="AI Coach">
-          <div
-            onClick={() => nav('/coach')}
-            style={{ background: 'var(--bg2)', borderLeft: '3px solid var(--accent)', borderRadius: 'var(--radius)', padding: '14px 16px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start' }}
-          >
-            <span style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }}><SparkleIcon size={18} /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{coachInsight.headline}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{coachInsight.body}</div>
-              {coachInsight.action && (
-                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginTop: 6 }}>→ {coachInsight.action}</div>
-              )}
-            </div>
           </div>
         </Section>
       )}
