@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: { injectionPoint: 'self.__WB_MANIFEST' },
       manifest: {
         name: 'BodMax',
         short_name: 'BodMax',
@@ -16,7 +19,15 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
+        scope: '/',
+        id: 'https://getbodmax.com/',
         icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }],
+        shortcuts: [
+          { name: 'Start Session', short_name: 'Train', description: 'Log a workout', url: '/session', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+          { name: 'Log Meal', short_name: 'Nutrition', description: 'Track your nutrition', url: '/diet', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+          { name: 'Progress', short_name: 'Progress', description: 'View your stats', url: '/progress', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+          { name: 'Social', short_name: 'Social', description: 'Friends & leaderboard', url: '/social', icons: [{ src: '/icon.svg', sizes: 'any' }] },
+        ],
       },
     }),
   ],

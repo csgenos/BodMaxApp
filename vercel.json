@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/gym-reminder",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/weekly-recap",
+      "schedule": "0 20 * * 0"
+    }
+  ]
+}

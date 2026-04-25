@@ -31,7 +31,7 @@ export default function Auth() {
   const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'14px 16px', fontSize:'16px', width:'100%', marginBottom:'12px' }
 
   return (
-    <div style={{ height:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column', justifyContent:'center', padding:'32px 24px', maxWidth:480, margin:'0 auto' }}>
+    <div className="page" style={{ height:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column', justifyContent:'center', padding:'32px 24px', maxWidth:480, margin:'0 auto' }}>
       <div style={{ marginBottom:40 }}>
         <div style={{ fontSize:'10px', letterSpacing:'5px', color:'var(--accent)', marginBottom:8, fontFamily:'var(--mono)' }}>WELCOME TO</div>
         <h1 style={{ fontSize:56, fontWeight:900, letterSpacing:'-2px', lineHeight:1 }}>BodMax</h1>
