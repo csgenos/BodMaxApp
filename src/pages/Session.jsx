@@ -12,6 +12,7 @@ import { audio } from '../lib/audio'
 import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, MedalIcon, CameraIcon, EditIcon, TrashIcon, ListIcon, BikeIcon } from '../lib/icons'
 import { estimateCalories } from '../lib/food'
 import { generateWorkout } from '../lib/ai'
+import { startCheckout, isPremium } from '../lib/stripe'
 
 const REP_RANGE_KEY = 'bm_rep_ranges'
 const getRepRanges = () => { try { return JSON.parse(localStorage.getItem(REP_RANGE_KEY) || '{}') } catch { return {} } }
@@ -768,20 +769,32 @@ export default function Session() {
               <button onClick={() => setShowAIWorkout(false)} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
             </div>
             <div style={{ overflowY:'auto', padding:'16px 20px 40px', flex:1 }}>
-              {aiWorkoutLoading && (
+              {!isPremium(profile) && (
+                <div style={{ textAlign:'center', padding:'24px 0' }}>
+                  <div style={{ fontSize:22, marginBottom:8 }}>✦</div>
+                  <div style={{ fontSize:14, fontWeight:700, marginBottom:6 }}>Premium Feature</div>
+                  <div style={{ fontSize:13, color:'var(--text-dim)', marginBottom:16, lineHeight:1.5 }}>
+                    AI workout generation is available on BodMax Premium.
+                  </div>
+                  <button onClick={async () => { try { await startCheckout() } catch {} }} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'12px 28px', color:'#fff', fontWeight:700, fontSize:14 }}>
+                    Upgrade — $5/mo
+                  </button>
+                </div>
+              )}
+              {isPremium(profile) && aiWorkoutLoading && (
                 <div style={{ textAlign:'center', padding:'40px 0' }}>
                   <div style={{ width:28, height:28, border:'2px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
                   <div style={{ fontSize:13, color:'var(--text-dim)' }}>Generating your personalized workout...</div>
                   <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
                 </div>
               )}
-              {aiWorkoutError && (
+              {isPremium(profile) && aiWorkoutError && (
                 <div style={{ textAlign:'center', padding:'24px 0' }}>
                   <div style={{ fontSize:13, color:'var(--accent)', marginBottom:12 }}>{aiWorkoutError}</div>
                   <button onClick={handleAIWorkout} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'10px 20px', color:'#fff', fontWeight:700, fontSize:13 }}>Retry</button>
                 </div>
               )}
-              {aiWorkout && !aiWorkoutLoading && (
+              {isPremium(profile) && aiWorkout && !aiWorkoutLoading && (
                 <div>
                   <div style={{ marginBottom:18 }}>
                     <div style={{ fontSize:22, fontWeight:800, marginBottom:4 }}>{aiWorkout.focus}</div>

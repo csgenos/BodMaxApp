@@ -5,6 +5,7 @@ import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS, calcSessionVolume
 import { calcStreak, sessionsThisWeek, sessionsLastWeek, weeklyVolume } from '../lib/streaks'
 import { FlameIcon, ZzzIcon, TrophyIcon, AlertIcon } from '../lib/icons'
 import { generateInsights } from '../lib/ai'
+import { startCheckout, isPremium } from '../lib/stripe'
 
 const todayDate = () => new Date().toISOString().split('T')[0]
 
@@ -274,7 +275,9 @@ export default function Dashboard() {
       {/* AI Coach Insights */}
       <Section label="AI Coach">
         <div className="card" style={{ padding: '16px 18px' }}>
-          {aiInsights ? (
+          {!isPremium(profile) ? (
+            <PremiumUpsell feature="AI coaching insights" onUpgrade={startCheckout} />
+          ) : aiInsights ? (
             <div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
                 {aiInsights.map((insight, i) => {
@@ -338,6 +341,28 @@ function MacroBar({ label, current, target, pct, color }) {
       <div style={{ height: 5, background: 'var(--border)', borderRadius: 3 }}>
         <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.4s' }} />
       </div>
+    </div>
+  )
+}
+
+function PremiumUpsell({ feature, onUpgrade }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const handleUpgrade = async () => {
+    setLoading(true); setError(null)
+    try { await onUpgrade() } catch (e) { setError(e.message); setLoading(false) }
+  }
+  return (
+    <div style={{ textAlign: 'center', padding: '8px 0' }}>
+      <div style={{ fontSize: 22, marginBottom: 8 }}>✦</div>
+      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Premium Feature</div>
+      <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 16, lineHeight: 1.5 }}>
+        {feature ? `${feature.charAt(0).toUpperCase() + feature.slice(1)} is` : 'This feature is'} available on BodMax Premium.
+      </div>
+      {error && <div style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 10 }}>{error}</div>}
+      <button onClick={handleUpgrade} disabled={loading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '12px 28px', color: '#fff', fontWeight: 700, fontSize: 14, opacity: loading ? 0.7 : 1 }}>
+        {loading ? 'Loading...' : 'Upgrade — $5/mo'}
+      </button>
     </div>
   )
 }

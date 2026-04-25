@@ -106,7 +106,19 @@ function TermsAcceptModal({ userId, onAccepted }) {
 }
 
 function Inner() {
-  const { user, profile, setProfile, isRecovering, uiScale } = useAuth()
+  const { user, profile, setProfile, isRecovering, uiScale, refreshProfile } = useAuth()
+  const [showSubSuccess, setShowSubSuccess] = useState(false)
+
+  useEffect(() => {
+    if (!profile) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('subscribed') === '1') {
+      window.history.replaceState({}, '', '/')
+      refreshProfile()
+      setShowSubSuccess(true)
+      setTimeout(() => setShowSubSuccess(false), 5000)
+    }
+  }, [profile?.id])
 
   if (user === undefined) return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -150,6 +162,11 @@ function Inner() {
         </div>
         <BottomNav />
       </div>
+      {showSubSuccess && (
+        <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: '#22c55e', color: '#fff', borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 700, zIndex: 300, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+          ✦ Welcome to Premium!
+        </div>
+      )}
     </BrowserRouter>
   )
 }

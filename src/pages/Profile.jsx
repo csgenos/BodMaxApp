@@ -7,6 +7,7 @@ import { getAchievements } from '../lib/achievements'
 import { isAudioEnabled, setAudioEnabled } from '../lib/audio'
 import { FlameIcon, ZzzIcon, SunIcon, MoonIcon, VolumeIcon, VolumeMuteIcon } from '../lib/icons'
 import LegalModal from '../components/LegalModal'
+import { startCheckout, openPortal, isPremium } from '../lib/stripe'
 
 const ACCENTS = ['#e0161e', '#e07016', '#e0c016', '#16c216', '#1680e0', '#8016e0', '#e016b4', '#f0f0f0']
 const GOALS = ['bulk', 'cut', 'maintain']
@@ -25,7 +26,20 @@ export default function Profile() {
   const [showReset, setShowReset] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [legalDoc, setLegalDoc] = useState(null)
+  const [subLoading, setSubLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  const handleUpgrade = async () => {
+    setSubLoading(true); setError(null)
+    try { await startCheckout() } catch (e) { setError(e.message) }
+    setSubLoading(false)
+  }
+
+  const handlePortal = async () => {
+    setSubLoading(true); setError(null)
+    try { await openPortal() } catch (e) { setError(e.message) }
+    setSubLoading(false)
+  }
   const [audioOn, setAudioOn] = useState(() => isAudioEnabled())
   const mounted = useRef(true)
 
@@ -85,6 +99,11 @@ export default function Profile() {
               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
                 Goal: {profile?.goal ? profile.goal.charAt(0).toUpperCase() + profile.goal.slice(1) : '—'}
               </span>
+              {isPremium(profile) && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.9)', color: 'var(--accent)', letterSpacing: '0.5px' }}>
+                  ✦ PREMIUM
+                </span>
+              )}
               {profile?.beta && (
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'rgba(255,255,255,0.9)', color: 'var(--accent)', letterSpacing: '0.5px' }}>
                   BETA
@@ -280,6 +299,49 @@ export default function Profile() {
                     {audioOn ? <><VolumeIcon size={14} /> ON</> : <><VolumeMuteIcon size={14} /> OFF</>}
                   </button>
                 </div>
+                {/* Subscription */}
+                {isPremium(profile) ? (
+                  <div className="card" style={{ padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div>
+                        <div className="label">SUBSCRIPTION</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#22c55e', marginTop: 3 }}>✦ BodMax Premium</div>
+                        {profile?.subscription_end_at && (
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Renews {new Date(profile.subscription_end_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button onClick={handlePortal} disabled={subLoading} style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 0', color: 'var(--text-dim)', fontWeight: 600, fontSize: 13, width: '100%' }}>
+                      {subLoading ? 'Loading...' : 'Manage Subscription'}
+                    </button>
+                  </div>
+                ) : profile?.subscription_status === 'past_due' ? (
+                  <div className="card" style={{ padding: '14px 16px', border: '1px solid var(--accent)' }}>
+                    <div className="label" style={{ marginBottom: 6 }}>SUBSCRIPTION</div>
+                    <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginBottom: 10 }}>Payment failed — update your billing info</div>
+                    <button onClick={handlePortal} disabled={subLoading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 0', color: '#fff', fontWeight: 700, fontSize: 13, width: '100%' }}>
+                      {subLoading ? 'Loading...' : 'Update Billing'}
+                    </button>
+                  </div>
+                ) : profile?.subscription_status === 'canceled' ? (
+                  <div className="card" style={{ padding: '14px 16px' }}>
+                    <div className="label" style={{ marginBottom: 6 }}>SUBSCRIPTION</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 10 }}>
+                      Premium canceled
+                      {profile?.subscription_end_at && ` · access until ${new Date(profile.subscription_end_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                    </div>
+                    <button onClick={handleUpgrade} disabled={subLoading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 0', color: '#fff', fontWeight: 700, fontSize: 13, width: '100%' }}>
+                      {subLoading ? 'Loading...' : 'Reactivate — $5/mo'}
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={handleUpgrade} disabled={subLoading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: 14, color: '#fff', fontWeight: 700, fontSize: 14, opacity: subLoading ? 0.7 : 1 }}>
+                    {subLoading ? 'Loading...' : '✦ Upgrade to Premium — $5/mo'}
+                  </button>
+                )}
+
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
                 <button onClick={() => setShowFeedback(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>SEND FEEDBACK</button>
                 <div style={{ display: 'flex', gap: 8 }}>

@@ -80,6 +80,16 @@ serve(async (req) => {
   const { data: { user }, error: authError } = await supabase.auth.getUser(token)
   if (authError || !user) return json({ error: 'Unauthorized' }, 401)
 
+  // Verify active Premium subscription
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('subscription_status')
+    .eq('id', user.id)
+    .single()
+  if (profile?.subscription_status !== 'active') {
+    return json({ error: 'Premium subscription required' }, 403)
+  }
+
   let body: { action: string; data: Record<string, unknown> }
   try {
     body = await req.json()
