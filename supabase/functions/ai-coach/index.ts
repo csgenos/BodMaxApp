@@ -83,10 +83,10 @@ serve(async (req) => {
   // Verify active Premium subscription
   const { data: profile } = await supabase
     .from('profiles')
-    .select('subscription_status')
+    .select('subscription_status, beta')
     .eq('id', user.id)
     .single()
-  if (profile?.subscription_status !== 'active') {
+  if (profile?.beta !== true && profile?.subscription_status !== 'active') {
     return json({ error: 'Premium subscription required' }, 403)
   }
 

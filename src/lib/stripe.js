@@ -14,4 +14,4 @@ export async function openPortal() {
   if (data?.url) window.location.href = data.url
 }
 
-export const isPremium = (profile) => profile?.subscription_status === 'active'
+export const isPremium = (profile) => profile?.beta === true || profile?.subscription_status === 'active'
