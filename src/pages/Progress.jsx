@@ -774,6 +774,12 @@ function Empty({ children }) {
 }
 
 function PRModal({ form, setForm, status, saving, onClose, onSave }) {
+  useEffect(() => {
+    const el = document.getElementById('scroll-root')
+    if (!el) return
+    el.style.overflow = 'hidden'
+    return () => { el.style.overflow = '' }
+  }, [])
   const INP = { background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', color:'var(--text)', padding:'11px 12px', fontSize:15, width:'100%' }
   const options = EXERCISES[form.muscleGroup] || []
   const name = form.exercise === '__custom__' ? form.customExercise.trim() : form.exercise.trim()

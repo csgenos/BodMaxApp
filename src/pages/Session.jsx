@@ -1156,6 +1156,12 @@ function OneRMModal({ ex, onClose }) {
 }
 
 function Modal({ children, onClose, title }) {
+  useEffect(() => {
+    const el = document.getElementById('scroll-root')
+    if (!el) return
+    el.style.overflow = 'hidden'
+    return () => { el.style.overflow = '' }
+  }, [])
   return (
     <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
       <div className="modal-sheet" style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>

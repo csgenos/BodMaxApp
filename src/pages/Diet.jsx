@@ -371,6 +371,13 @@ function BarcodeModal({ onFound, onClose }) {
     return () => { mountedRef.current = false; stopCamera() }
   }, [])
 
+  useEffect(() => {
+    const el = document.getElementById('scroll-root')
+    if (!el) return
+    el.style.overflow = 'hidden'
+    return () => { el.style.overflow = '' }
+  }, [])
+
   const stopCamera = useCallback(() => {
     if (readerRef.current) {
       try { readerRef.current.reset() } catch {}
