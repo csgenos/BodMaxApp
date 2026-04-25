@@ -6,6 +6,7 @@ import { calcStreak } from '../lib/streaks'
 import { getAchievements } from '../lib/achievements'
 import { isAudioEnabled, setAudioEnabled } from '../lib/audio'
 import { FlameIcon, ZzzIcon, SunIcon, MoonIcon, VolumeIcon, VolumeMuteIcon } from '../lib/icons'
+import LegalModal from '../components/LegalModal'
 
 const ACCENTS = ['#e0161e', '#e07016', '#e0c016', '#16c216', '#1680e0', '#8016e0', '#e016b4', '#f0f0f0']
 const GOALS = ['bulk', 'cut', 'maintain']
@@ -23,6 +24,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [legalDoc, setLegalDoc] = useState(null)
   const [error, setError] = useState(null)
   const [audioOn, setAudioOn] = useState(() => isAudioEnabled())
   const mounted = useRef(true)
@@ -280,6 +282,10 @@ export default function Profile() {
                 </div>
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
                 <button onClick={() => setShowFeedback(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>SEND FEEDBACK</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setLegalDoc('terms')} style={{ flex: 1, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12, color: 'var(--text-dim)', fontWeight: 600, fontSize: 12 }}>Terms of Service</button>
+                  <button onClick={() => setLegalDoc('privacy')} style={{ flex: 1, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 12, color: 'var(--text-dim)', fontWeight: 600, fontSize: 12 }}>Privacy Policy</button>
+                </div>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (
                   <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>
@@ -299,6 +305,7 @@ export default function Profile() {
         )}
       </div>
       {showFeedback && <FeedbackModal userId={profile?.id} onClose={() => setShowFeedback(false)} />}
+      {legalDoc && <LegalModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
     </div>
   )
 }
