@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library'
 import { useAuth } from '../context/AuthContext'
 import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories, getSavedMeals, saveMeal, deleteSavedMeal } from '../lib/db'
@@ -241,7 +242,7 @@ export default function Diet() {
       </div>
 
       {/* Log meal form modal-style */}
-      {showAdd && (
+      {showAdd && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100, display: 'flex', alignItems: 'flex-end' }} onClick={() => setShowAdd(false)}>
           <div style={{ background: 'var(--bg2)', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 20px 16px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
@@ -324,7 +325,8 @@ export default function Diet() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {showBarcode && <BarcodeModal onFound={handleBarcodeFound} onClose={() => setShowBarcode(false)} />}
     </div>
@@ -448,7 +450,7 @@ function BarcodeModal({ onFound, onClose }) {
     if (mountedRef.current) setLoading(false)
   }
 
-  return (
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
       <div style={{ width: '100%', maxWidth: 400, background: 'var(--bg2)', borderRadius: 'var(--radius)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
@@ -488,6 +490,7 @@ function BarcodeModal({ onFound, onClose }) {
           {error && <div style={{ fontSize: 12, color: 'var(--accent)', textAlign: 'center' }}>{error}</div>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
