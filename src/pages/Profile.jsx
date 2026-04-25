@@ -9,6 +9,7 @@ import { FlameIcon, ZzzIcon, SunIcon, MoonIcon, VolumeIcon, VolumeMuteIcon } fro
 
 const ACCENTS = ['#e0161e', '#e07016', '#e0c016', '#16c216', '#1680e0', '#8016e0', '#e016b4', '#f0f0f0']
 const GOALS = ['bulk', 'cut', 'maintain']
+const ATHLETE_TYPES = ['Bodybuilder', 'Powerlifter', 'Calisthenics', 'CrossFit', 'Olympic Lifting', 'Strongman', 'General Fitness', 'Athlete']
 const INP = { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '12px 14px', fontSize: 15, width: '100%' }
 
 export default function Profile() {
@@ -59,6 +60,7 @@ export default function Profile() {
         target_protein: +form.target_protein,
         target_carbs: form.target_carbs ? +form.target_carbs : null,
         target_fat: form.target_fat ? +form.target_fat : null,
+        athlete_type: form.athlete_type || null,
         accent_color: form.accent_color,
         unit: form.unit || 'lbs',
         weight: form.weight ? +form.weight : null,
@@ -216,6 +218,11 @@ export default function Profile() {
                 <Field label="GOAL">
                   <div style={{ display: 'flex', gap: 8 }}>
                     {GOALS.map(g => <ToggleBtn key={g} active={form.goal === g} onClick={() => setForm(f => ({ ...f, goal: g }))}>{g}</ToggleBtn>)}
+                  </div>
+                </Field>
+                <Field label="ATHLETE TYPE">
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {ATHLETE_TYPES.map(t => <ToggleBtn key={t} active={form.athlete_type === t} onClick={() => setForm(f => ({ ...f, athlete_type: f.athlete_type === t ? null : t }))}>{t}</ToggleBtn>)}
                   </div>
                 </Field>
                 <Field label="WEIGHT UNIT">

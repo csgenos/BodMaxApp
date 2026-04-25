@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, Component } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -13,6 +13,20 @@ const Diet = lazy(() => import('./pages/Diet'))
 const Progress = lazy(() => import('./pages/Progress'))
 const Social = lazy(() => import('./pages/Social'))
 const Profile = lazy(() => import('./pages/Profile'))
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(e) { return { error: e } }
+  render() {
+    if (this.state.error) return (
+      <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 14, marginBottom: 8 }}>Something went wrong on this page.</div>
+        <button onClick={() => this.setState({ error: null })} style={{ background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', color: '#fff', fontWeight: 700, fontSize: 13 }}>Retry</button>
+      </div>
+    )
+    return this.props.children
+  }
+}
 
 function PageLoader() {
   return (
@@ -43,6 +57,7 @@ function Inner() {
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ zoom: uiScale }}>
           <Suspense fallback={<PageLoader />}>
+          <ErrorBoundary>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/session" element={<Session />} />
@@ -52,6 +67,7 @@ function Inner() {
               <Route path="/profile" element={<Profile />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+          </ErrorBoundary>
           </Suspense>
           </div>
         </div>

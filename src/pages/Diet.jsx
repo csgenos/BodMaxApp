@@ -176,16 +176,12 @@ export default function Diet() {
         <div style={{ marginTop: 10 }}>
           <MacroBar label="PROTEIN" current={`${totalProt}g`} target={`${profile?.target_protein || 0}g`} pct={protPct} color="#4a9eb5" />
         </div>
-        {(profile?.target_carbs || totalCarbs > 0) && (
-          <div style={{ marginTop: 10 }}>
-            <MacroBar label="CARBS" current={`${totalCarbs}g`} target={`${profile?.target_carbs || 0}g`} pct={carbPct} color="#c88a2e" />
-          </div>
-        )}
-        {(profile?.target_fat || totalFat > 0) && (
-          <div style={{ marginTop: 10 }}>
-            <MacroBar label="FAT" current={`${totalFat}g`} target={`${profile?.target_fat || 0}g`} pct={fatPct} color="#9a5ad4" />
-          </div>
-        )}
+        <div style={{ marginTop: 10 }}>
+          <MacroBar label="CARBS" current={`${totalCarbs}g`} target={`${profile?.target_carbs || 0}g`} pct={carbPct} color="#c88a2e" />
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <MacroBar label="FAT" current={`${totalFat}g`} target={`${profile?.target_fat || 0}g`} pct={fatPct} color="#9a5ad4" />
+        </div>
         {cardioCalories > 0 && (
           <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', background: 'rgba(74,158,181,0.1)', border: '1px solid rgba(74,158,181,0.3)', borderRadius: 8 }}>
             <span style={{ fontSize: 10, color: '#4a9eb5', fontFamily: 'var(--mono)', letterSpacing: '2px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5 }}><FlameIcon size={12} /> CARDIO BURNED</span>
@@ -245,24 +241,7 @@ export default function Diet() {
               <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
             </div>
             <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {savedMeals.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 9, letterSpacing: '4px', color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>SAVED MEALS</div>
-                  <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-                    {savedMeals.map(m => (
-                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 10px 6px 12px', flexShrink: 0 }}>
-                        <button
-                          onClick={() => handleSelectSavedMeal(m)}
-                          style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 12, fontWeight: 600, padding: 0 }}
-                        >{m.name} <span style={{ color: 'var(--accent)', fontFamily: 'var(--mono)', fontSize: 10 }}>{m.calories}cal</span></button>
-                        <button onClick={() => handleDeleteSavedMeal(m.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 14, padding: '0 0 0 4px', lineHeight: 1 }}>×</button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button onClick={() => setShowBarcode(true)} style={{ width: '100%', background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><BarcodeIcon size={16} /> Scan Barcode</button>
-              <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} autoFocus />
+              <input style={INP} placeholder="Meal name *" value={form.meal} onChange={e => setForm(f => ({ ...f, meal: e.target.value }))} />
               {(searchLoading || searchResults.length > 0) && (
                 <div style={{ background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', marginTop: -8 }}>
                   {searchLoading && <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)' }}>Searching...</div>}
@@ -306,6 +285,20 @@ export default function Diet() {
                 <input style={INP} type="number" placeholder="Carbs (g)" value={form.carbs} onChange={e => setForm(f => ({ ...f, carbs: e.target.value }))} />
                 <input style={INP} type="number" placeholder="Fat (g)" value={form.fat} onChange={e => setForm(f => ({ ...f, fat: e.target.value }))} />
               </div>
+              {savedMeals.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 9, letterSpacing: '4px', color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginBottom: 8 }}>SAVED MEALS</div>
+                  <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                    {savedMeals.map(m => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 10px 6px 12px', flexShrink: 0 }}>
+                        <button onClick={() => handleSelectSavedMeal(m)} style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 12, fontWeight: 600, padding: 0 }}>{m.name} <span style={{ color: 'var(--accent)', fontFamily: 'var(--mono)', fontSize: 10 }}>{m.calories}cal</span></button>
+                        <button onClick={() => handleDeleteSavedMeal(m.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 14, padding: '0 0 0 4px', lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button onClick={() => setShowBarcode(true)} style={{ width: '100%', background: 'var(--bg3)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: 13, color: 'var(--text-dim)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}><BarcodeIcon size={16} /> Scan Barcode</button>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display: 'none' }} />
               {form.photo ? (
                 <div style={{ position: 'relative' }}>

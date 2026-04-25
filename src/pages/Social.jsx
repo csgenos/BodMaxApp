@@ -360,27 +360,32 @@ export default function Social() {
               </div>
             ) : sortedLeaderboard.map((entry, i) => {
               const count = competeMode === 'weekly' ? entry.weeklyCount : entry.monthlyCount
+              const podiumColors = [
+                { bg: '#B8860B', text: '#fff', sub: 'rgba(255,255,255,0.75)', medal: '🥇' },
+                { bg: '#707070', text: '#fff', sub: 'rgba(255,255,255,0.75)', medal: '🥈' },
+                { bg: '#7C4A1E', text: '#fff', sub: 'rgba(255,255,255,0.75)', medal: '🥉' },
+              ]
               const isPodium = i < 3
-              const podiumBg = i === 0 ? 'var(--accent)' : i === 2 ? 'rgba(224,22,30,0.5)' : 'var(--bg3)'
+              const pc = podiumColors[i]
               return (
-                <div key={entry.id} style={{ borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12, background: isPodium ? podiumBg : 'var(--bg3)', border: entry.isMe && !isPodium ? '1px solid var(--accent)' : '1px solid transparent' }}>
+                <div key={entry.id} style={{ borderRadius: 'var(--radius)', padding: '14px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12, background: isPodium ? pc.bg : 'var(--bg3)', border: entry.isMe && !isPodium ? '1px solid var(--accent)' : '1px solid transparent' }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: isPodium ? '#fff' : 'var(--text-dim)' }}>{i + 1}</span>
+                    <span style={{ fontSize: isPodium ? 18 : 14, fontWeight: 800, color: isPodium ? pc.text : 'var(--text-dim)' }}>{isPodium ? pc.medal : i + 1}</span>
                   </div>
                   <Avatar name={entry.name} size={36} light={isPodium} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: isPodium ? '#fff' : 'var(--text)' }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: isPodium ? pc.text : 'var(--text)' }}>
                       {entry.name}{entry.isMe ? ' (you)' : ''}
                     </div>
-                    <div style={{ fontSize: 12, color: isPodium ? 'rgba(255,255,255,0.7)' : 'var(--text-dim)', marginTop: 1 }}>
+                    <div style={{ fontSize: 12, color: isPodium ? pc.sub : 'var(--text-dim)', marginTop: 1 }}>
                       {count} session{count !== 1 ? 's' : ''}{entry.streak > 0 ? ` · ${entry.streak} day streak` : ''}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: isPodium ? '#fff' : 'var(--text)' }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: isPodium ? pc.text : 'var(--text)' }}>
                       {Math.round((competeMode === 'weekly' ? entry.weeklyVolume : entry.monthlyVolume) || 0).toLocaleString()}
                     </div>
-                    <div style={{ fontSize: 10, color: isPodium ? 'rgba(255,255,255,0.6)' : 'var(--text-dim)' }}>{unit}</div>
+                    <div style={{ fontSize: 10, color: isPodium ? pc.sub : 'var(--text-dim)' }}>{unit}</div>
                   </div>
                 </div>
               )

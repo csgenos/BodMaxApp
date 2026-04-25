@@ -819,12 +819,18 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose, customExercis
   }
   const groupCustom = customExercises.filter(e => e.muscle_group === group)
   return (
-    <Modal onClose={onClose} title="ADD EXERCISE">
-      <div style={{ position:'sticky', top:0, background:'var(--bg2)', zIndex:1, marginLeft:-20, marginRight:-20, paddingLeft:20, paddingRight:20, paddingTop:4, paddingBottom:12, marginTop:-16, marginBottom:2 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding: '6px 12px', borderRadius: 20, border: 'none', background: group === g ? 'var(--accent)' : 'var(--bg3)', color: group === g ? '#fff' : 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>{g}</button>)}
+    <div className="modal-backdrop" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={onClose}>
+      <div className="modal-sheet" style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', width:'100%', maxHeight:'85vh', display:'flex', flexDirection:'column' }} onClick={e=>e.stopPropagation()}>
+        <div style={{ flexShrink:0, borderBottom:'1px solid var(--border)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'20px 20px 10px' }}>
+            <span className="label">ADD EXERCISE</span>
+            <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
+          </div>
+          <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:12, paddingLeft:20, paddingRight:20, WebkitOverflowScrolling:'touch' }}>
+            {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding:'6px 14px', borderRadius:20, border:'none', background:group===g?'var(--accent)':'var(--bg3)', color:group===g?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600, flexShrink:0 }}>{g}</button>)}
+          </div>
         </div>
-      </div>
+        <div style={{ overflowY:'auto', padding:'16px 20px 40px', flex:1 }}>
       {showCustom ? (
         <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:12 }}>
           <div style={{ fontSize:11, color:'var(--text-muted)', letterSpacing:'2px', fontFamily:'var(--mono)' }}>CUSTOM — {group.toUpperCase()}</div>
@@ -860,7 +866,9 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose, customExercis
       <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
         {(EXERCISES[group]||[]).map(ex => <button key={ex} onClick={()=>onSelect(ex,group)} style={{ background:'var(--bg3)', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'13px 14px', textAlign:'left', color:'var(--text)', fontSize:14 }}>{ex}</button>)}
       </div>
-    </Modal>
+        </div>
+      </div>
+    </div>
   )
 }
 
