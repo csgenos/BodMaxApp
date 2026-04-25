@@ -4,8 +4,8 @@
 //
 // Required secrets (set via Supabase dashboard → Edge Functions → Secrets, or CLI):
 //   supabase secrets set RESEND_API_KEY=re_xxxx
-//   supabase secrets set FEEDBACK_EMAIL=you@youremail.com
-//   supabase secrets set FROM_EMAIL="BodMax <feedback@yourdomain.com>"
+//   supabase secrets set FEEDBACK_EMAIL=feedback@getbodmax.com
+//   supabase secrets set FROM_EMAIL="BodMax <feedback@getbodmax.com>"
 //
 // Deploy:
 //   supabase functions deploy notify-feedback
@@ -21,7 +21,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const TO_EMAIL       = Deno.env.get('FEEDBACK_EMAIL')!
-const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || 'BodMax <onboarding@resend.dev>'
+const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || 'BodMax <feedback@getbodmax.com>'
 
 serve(async (req) => {
   if (req.method !== 'POST') {
