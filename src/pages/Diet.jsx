@@ -365,12 +365,10 @@ function BarcodeModal({ onFound, onClose }) {
   }, [])
 
   const stopCamera = useCallback(() => {
-    // Stop ZXing reader
     if (readerRef.current) {
-      try { BrowserMultiFormatReader.releaseAllStreams() } catch {}
+      try { readerRef.current.reset() } catch {}
       readerRef.current = null
     }
-    // Stop native BarcodeDetector stream
     if (nativeScanRef.current) cancelAnimationFrame(nativeScanRef.current)
     nativeStreamRef.current?.getTracks().forEach(t => t.stop())
     nativeStreamRef.current = null
@@ -401,7 +399,7 @@ function BarcodeModal({ onFound, onClose }) {
       try {
         const reader = new BrowserMultiFormatReader()
         readerRef.current = reader
-        const devices = await BrowserMultiFormatReader.listVideoInputDevices()
+        const devices = await reader.listVideoInputDevices()
         const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[0]?.deviceId
         reader.decodeFromVideoDevice(deviceId || null, videoRef.current, (result, err) => {
           if (!mountedRef.current) return

@@ -50,15 +50,18 @@ export default function Profile() {
   const achievements = useMemo(() => getAchievements(sessions, prs, streak.best, { beta: profile?.beta }), [sessions, prs, streak.best, profile?.beta])
   const earnedCount = achievements.filter(a => a.earned).length
 
-  useEffect(() => {
-    if (!editing) return
-    const c = form.accent_color
+  const applyAccent = (c) => {
     if (!c || !/^#[0-9a-fA-F]{6}$/.test(c)) return
     document.documentElement.style.setProperty('--accent', c)
     const hex = c.slice(1)
     const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16)
     document.documentElement.style.setProperty('--accent-low', `rgba(${r},${g},${b},0.12)`)
-  }, [editing, form.accent_color])
+  }
+
+  useEffect(() => {
+    if (editing) applyAccent(form.accent_color)
+    else applyAccent(profile?.accent_color)
+  }, [editing, form.accent_color, profile?.accent_color])
 
   const saveProfile = async () => {
     if (saving) return
