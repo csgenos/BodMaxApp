@@ -6,6 +6,7 @@ import BottomNav from './components/BottomNav'
 import Auth from './pages/Auth'
 import Setup from './pages/Setup'
 import UpdatePassword from './pages/UpdatePassword'
+import TermsAcceptance from './pages/TermsAcceptance'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Session = lazy(() => import('./pages/Session'))
@@ -51,6 +52,7 @@ function Inner() {
   if (isRecovering) return <UpdatePassword />
   if (!user) return <Auth />
   if (!profile) return <Setup />
+  if (!profile.terms_accepted_at) return <TermsAcceptance />
 
   return (
     <BrowserRouter>

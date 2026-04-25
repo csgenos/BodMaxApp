@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import { getSessions, getPRs, updateProfile, addFeedback } from '../lib/db'
+import { TERMS_OF_SERVICE, PRIVACY_POLICY, LEGAL_EFFECTIVE_DATE } from '../lib/legal'
 import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUSCLE_GROUPS } from '../lib/ranks'
 import { calcStreak } from '../lib/streaks'
 import { getAchievements } from '../lib/achievements'
@@ -24,6 +26,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [showReset, setShowReset] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [showLegal, setShowLegal] = useState(null) // 'tos' | 'pp' | null
   const [error, setError] = useState(null)
   const [audioOn, setAudioOn] = useState(() => isAudioEnabled())
   const mounted = useRef(true)
@@ -314,6 +317,18 @@ export default function Profile() {
                 </div>
                 <button onClick={() => setEditing(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>EDIT PROFILE</button>
                 <button onClick={() => setShowFeedback(true)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>SEND FEEDBACK</button>
+                <div className="card" style={{ padding: '12px 14px' }}>
+                  <div className="label" style={{ marginBottom: 10 }}>LEGAL</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button onClick={() => setShowLegal('tos')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', color: 'var(--text-dim)', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Terms of Service</button>
+                    <button onClick={() => setShowLegal('pp')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', color: 'var(--text-dim)', fontWeight: 600, fontSize: 13, textAlign: 'left' }}>Privacy Policy</button>
+                    {profile?.terms_accepted_at && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', paddingLeft: 2 }}>
+                        Accepted {new Date(profile.terms_accepted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (
                   <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>
@@ -333,6 +348,21 @@ export default function Profile() {
         )}
       </div>
       {showFeedback && <FeedbackModal userId={profile?.id} onClose={() => setShowFeedback(false)} />}
+      {showLegal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button onClick={() => setShowLegal(null)} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 14, fontWeight: 700, padding: 0 }}>← Back</button>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>{showLegal === 'tos' ? 'Terms of Service' : 'Privacy Policy'}</span>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', WebkitOverflowScrolling: 'touch' }}>
+            <p style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {showLegal === 'tos' ? TERMS_OF_SERVICE : PRIVACY_POLICY}
+            </p>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', marginTop: 16 }}>Effective Date: {LEGAL_EFFECTIVE_DATE}</div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

@@ -499,6 +499,11 @@ export const useInviteCode = async (code) => {
   return !!data
 }
 
+export const acceptTerms = async () => {
+  const { error } = await supabase.rpc('accept_terms')
+  if (error) throw error
+}
+
 // ── AI COACH + STRIPE ────────────────────────────────────
 export const createStripeCheckout = async (userId) => {
   const { data, error } = await supabase.functions.invoke('stripe-checkout', { body: { userId } })
