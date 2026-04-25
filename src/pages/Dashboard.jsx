@@ -4,6 +4,7 @@ import { getSessions, getDietByDate, getPRs } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
 import { calcStreak, sessionsThisWeek, sessionsLastWeek, weeklyVolume } from '../lib/streaks'
 import { FlameIcon, ZzzIcon, TrophyIcon, AlertIcon } from '../lib/icons'
+import { generateInsights } from '../lib/ai'
 
 const todayDate = () => new Date().toISOString().split('T')[0]
 
@@ -15,6 +16,9 @@ export default function Dashboard() {
   const [todayDiet, setTodayDiet] = useState([])
   const [prs, setPRs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [aiInsights, setAiInsights] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState(null)
   const mounted = useRef(true)
 
   useEffect(() => {
@@ -69,6 +73,27 @@ export default function Dashboard() {
     if (daysSinceLast >= 3) return `${daysSinceLast} days since your last session. Don't let the momentum die.`
     return `${daysSinceLast} days off — the rest day stretched into two. Time to get back.`
   }, [daysSinceLast])
+
+  const handleGenerateInsights = async () => {
+    setAiLoading(true); setAiError(null)
+    try {
+      const volNowVal = weeklyVolume(sessions, 0)
+      const volPrevVal = weeklyVolume(sessions, 1)
+      const volDiff = volPrevVal > 0 ? Math.round((volNowVal - volPrevVal) / volPrevVal * 100) : null
+      const result = await generateInsights(
+        profile,
+        sessions,
+        { calories: totalCal, protein: totalProt, carbs: totalCarbs, fat: totalFat },
+        streak.current,
+        { thisWeek: sessionsThisWeek(sessions), volDiff }
+      )
+      setAiInsights(result?.insights || [])
+    } catch (e) {
+      setAiError(e.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -244,6 +269,41 @@ export default function Dashboard() {
             })}
           </div>
         )}
+      </Section>
+
+      {/* AI Coach Insights */}
+      <Section label="AI Coach">
+        <div className="card" style={{ padding: '16px 18px' }}>
+          {aiInsights ? (
+            <div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+                {aiInsights.map((insight, i) => {
+                  const colors = { positive: '#22c55e', warning: 'var(--accent)', tip: '#4a9eb5' }
+                  const color = colors[insight.type] || '#4a9eb5'
+                  return (
+                    <div key={i} style={{ borderLeft: `3px solid ${color}`, paddingLeft: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 3 }}>{insight.title}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>{insight.body}</div>
+                    </div>
+                  )
+                })}
+              </div>
+              <button onClick={handleGenerateInsights} disabled={aiLoading} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '9px 16px', color: 'var(--text-dim)', fontSize: 12, fontWeight: 600 }}>
+                {aiLoading ? 'Analyzing...' : 'Refresh'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 14, lineHeight: 1.5 }}>
+                Get personalized coaching insights based on your training, nutrition, and progress.
+              </div>
+              {aiError && <div style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 10 }}>{aiError}</div>}
+              <button onClick={handleGenerateInsights} disabled={aiLoading} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '12px 24px', color: '#fff', fontWeight: 700, fontSize: 14, opacity: aiLoading ? 0.7 : 1 }}>
+                {aiLoading ? 'Analyzing...' : 'Get AI Insights'}
+              </button>
+            </div>
+          )}
+        </div>
       </Section>
     </div>
   )

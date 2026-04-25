@@ -11,6 +11,7 @@ import { haptic } from '../lib/haptics'
 import { audio } from '../lib/audio'
 import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, MedalIcon, CameraIcon, EditIcon, TrashIcon, ListIcon, BikeIcon } from '../lib/icons'
 import { estimateCalories } from '../lib/food'
+import { generateWorkout } from '../lib/ai'
 
 const REP_RANGE_KEY = 'bm_rep_ranges'
 const getRepRanges = () => { try { return JSON.parse(localStorage.getItem(REP_RANGE_KEY) || '{}') } catch { return {} } }
@@ -60,6 +61,10 @@ export default function Session() {
   const [isEditing, setIsEditing] = useState(false)
   const [editSessionId, setEditSessionId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [showAIWorkout, setShowAIWorkout] = useState(false)
+  const [aiWorkout, setAiWorkout] = useState(null)
+  const [aiWorkoutLoading, setAiWorkoutLoading] = useState(false)
+  const [aiWorkoutError, setAiWorkoutError] = useState(null)
   const timer = useRef(null)
   const [, setTick] = useState(0) // triggers re-render each second so the timer ticks
   const [saving, setSaving] = useState(false)
@@ -182,6 +187,39 @@ export default function Session() {
       const lastSets = await getLastExerciseSets(profile.id, ex.name)
       if (lastSets?.length) {
         const best = lastSets.reduce((a,b) => (+b.weight||0)>(+a.weight||0)?b:a)
+        setSuggestions(s => ({ ...s, [ex.name]: { weight: best.weight, reps: best.reps } }))
+      }
+    }
+  }
+
+  const handleAIWorkout = async () => {
+    setShowAIWorkout(true); setAiWorkout(null); setAiWorkoutError(null); setAiWorkoutLoading(true)
+    try {
+      const result = await generateWorkout(profile, sessions)
+      setAiWorkout(result)
+    } catch (e) {
+      setAiWorkoutError(e.message)
+    } finally {
+      setAiWorkoutLoading(false)
+    }
+  }
+
+  const startAIWorkout = async () => {
+    if (!aiWorkout?.exercises?.length) return
+    const exs = aiWorkout.exercises.map(e => ({
+      id: uid(),
+      name: e.name,
+      muscleGroup: e.muscleGroup,
+      sets: [{ id: uid(), weight: '', reps: '' }],
+    }))
+    setIsEditing(false); setEditSessionId(null)
+    setActive({ id: uid(), date: new Date().toISOString(), startTime: Date.now(), exercises: exs, cardio: [] })
+    setView('active')
+    setShowAIWorkout(false)
+    for (const ex of exs) {
+      const lastSets = await getLastExerciseSets(profile.id, ex.name)
+      if (lastSets?.length) {
+        const best = lastSets.reduce((a, b) => (+b.weight || 0) > (+a.weight || 0) ? b : a)
         setSuggestions(s => ({ ...s, [ex.name]: { weight: best.weight, reps: best.reps } }))
       }
     }
@@ -672,9 +710,14 @@ export default function Session() {
         </button>
         <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:14, fontWeight:600 }}>Template</button>
       </div>
-      <button onClick={() => setView('split')} style={{ width:'100%', background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, marginBottom:20, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-        <ListIcon size={16} /> Weekly Split
-      </button>
+      <div style={{ display:'flex', gap:10, marginBottom:20 }}>
+        <button onClick={() => setView('split')} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          <ListIcon size={16} /> Weekly Split
+        </button>
+        <button onClick={handleAIWorkout} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          ✦ AI Workout
+        </button>
+      </div>
 
       {sessions.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-dim)', fontSize: 14 }}>No sessions yet — start lifting</div>
@@ -716,6 +759,60 @@ export default function Session() {
         </div>
       )}
       {showTemplates && <TemplatesModal templates={templates} sessions={sessions} onPickTemplate={startFromTemplate} onPickSession={startFromPastSession} onDeleteTemplate={handleDeleteTemplate} onClose={()=>setShowTemplates(false)} />}
+
+      {showAIWorkout && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:100, display:'flex', alignItems:'flex-end' }} onClick={() => setShowAIWorkout(false)}>
+          <div style={{ background:'var(--bg2)', borderRadius:'20px 20px 0 0', width:'100%', maxHeight:'85vh', display:'flex', flexDirection:'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding:'20px 20px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+              <span style={{ fontSize:11, fontWeight:700, letterSpacing:'2px', color:'var(--text-dim)' }}>✦ AI WORKOUT</span>
+              <button onClick={() => setShowAIWorkout(false)} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
+            </div>
+            <div style={{ overflowY:'auto', padding:'16px 20px 40px', flex:1 }}>
+              {aiWorkoutLoading && (
+                <div style={{ textAlign:'center', padding:'40px 0' }}>
+                  <div style={{ width:28, height:28, border:'2px solid var(--border)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
+                  <div style={{ fontSize:13, color:'var(--text-dim)' }}>Generating your personalized workout...</div>
+                  <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                </div>
+              )}
+              {aiWorkoutError && (
+                <div style={{ textAlign:'center', padding:'24px 0' }}>
+                  <div style={{ fontSize:13, color:'var(--accent)', marginBottom:12 }}>{aiWorkoutError}</div>
+                  <button onClick={handleAIWorkout} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius-sm)', padding:'10px 20px', color:'#fff', fontWeight:700, fontSize:13 }}>Retry</button>
+                </div>
+              )}
+              {aiWorkout && !aiWorkoutLoading && (
+                <div>
+                  <div style={{ marginBottom:18 }}>
+                    <div style={{ fontSize:22, fontWeight:800, marginBottom:4 }}>{aiWorkout.focus}</div>
+                    {aiWorkout.tip && (
+                      <div style={{ fontSize:13, color:'var(--text-dim)', lineHeight:1.5, background:'var(--bg3)', borderRadius:10, padding:'10px 14px', borderLeft:'3px solid var(--accent)' }}>
+                        {aiWorkout.tip}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+                    {(aiWorkout.exercises || []).map((ex, i) => (
+                      <div key={i} className="card" style={{ padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{ex.name}</div>
+                          <div style={{ fontSize:10, color:'var(--accent)', letterSpacing:'2px', fontFamily:'var(--mono)', marginTop:2 }}>{ex.muscleGroup?.toUpperCase()}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={startAIWorkout} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius)', padding:'15px 0', color:'#fff', fontWeight:700, fontSize:15, width:'100%' }}>
+                    ▶ Start This Workout
+                  </button>
+                  <button onClick={handleAIWorkout} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'12px 0', color:'var(--text-dim)', fontWeight:600, fontSize:13, width:'100%', marginTop:10 }}>
+                    Regenerate
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
