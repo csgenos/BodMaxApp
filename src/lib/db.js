@@ -222,8 +222,43 @@ export const checkAndUpdatePR = async (userId, exercise, muscleGroup, weight, re
 }
 
 // ── SESSION MUTATIONS ────────────────────────────────────
+const recalcPR = async (userId, exerciseName) => {
+  const { data: sessionRows } = await supabase
+    .from('sessions').select('id').eq('user_id', userId).not('completed_at', 'is', null)
+  if (!sessionRows?.length) {
+    await supabase.from('personal_records').delete().eq('user_id', userId).eq('exercise', exerciseName)
+    return
+  }
+  const { data: exRows } = await supabase
+    .from('exercises').select('muscle_group, sets(*)')
+    .eq('name', exerciseName).in('session_id', sessionRows.map(s => s.id))
+  if (!exRows?.length) {
+    await supabase.from('personal_records').delete().eq('user_id', userId).eq('exercise', exerciseName)
+    return
+  }
+  let best = null
+  for (const ex of exRows) {
+    for (const set of (ex.sets || [])) {
+      if (!set.weight || !set.reps || set.is_warmup) continue
+      if (!best || +set.weight > best.weight || (+set.weight === best.weight && +set.reps > best.reps))
+        best = { weight: +set.weight, reps: +set.reps, muscleGroup: ex.muscle_group }
+    }
+  }
+  if (!best) {
+    await supabase.from('personal_records').delete().eq('user_id', userId).eq('exercise', exerciseName)
+    return
+  }
+  const { data: existing } = await supabase.from('personal_records').select('id').eq('user_id', userId).eq('exercise', exerciseName).maybeSingle()
+  if (existing) {
+    await supabase.from('personal_records').update({ weight: best.weight, reps: best.reps, muscle_group: best.muscleGroup }).eq('id', existing.id)
+  } else {
+    await supabase.from('personal_records').insert({ user_id: userId, exercise: exerciseName, muscle_group: best.muscleGroup, weight: best.weight, reps: best.reps, date: new Date().toISOString() })
+  }
+}
+
 export const deleteSession = async (sessionId, userId) => {
-  const { data: exRows } = await supabase.from('exercises').select('id').eq('session_id', sessionId)
+  const { data: exRows } = await supabase.from('exercises').select('id, name').eq('session_id', sessionId)
+  const exerciseNames = [...new Set((exRows || []).map(e => e.name))]
   if (exRows?.length) {
     await supabase.from('sets').delete().in('exercise_id', exRows.map(e => e.id))
   }
@@ -231,6 +266,7 @@ export const deleteSession = async (sessionId, userId) => {
   await supabase.from('cardio').delete().eq('session_id', sessionId)
   const { error } = await supabase.from('sessions').delete().eq('id', sessionId).eq('user_id', userId)
   if (error) throw error
+  await Promise.all(exerciseNames.map(name => recalcPR(userId, name)))
 }
 
 export const updateSession = async (sessionId, userId, session) => {
@@ -457,7 +493,15 @@ export const deleteSavedMeal = async (userId, id) => {
   if (error) throw error
 }
 
+export const useInviteCode = async (code) => {
+  const { data, error } = await supabase.rpc('use_invite_code', { p_code: code.trim().toUpperCase() })
+  if (error) throw error
+  return !!data
+}
+
 export const addFeedback = async (userId, message, rating) => {
   const { error } = await supabase.from('feedback').insert({ user_id: userId, message, rating: rating || null })
   if (error) throw error
+  // Fire-and-forget email notification — non-fatal if it fails
+  supabase.functions.invoke('send-feedback-email', { body: { message, rating, userId } }).catch(() => {})
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { createProfile } from '../lib/db'
+import { createProfile, useInviteCode } from '../lib/db'
 
 const GOALS = ['bulk', 'cut', 'maintain']
 const ACCENTS = ['#e0161e','#e07016','#e0c016','#16c216','#1680e0','#8016e0','#e016b4','#f0f0f0']
@@ -17,6 +17,7 @@ export default function Setup() {
   const [weight, setWeight] = useState('')
   const [unit, setUnit] = useState('lbs')
   const [accent, setAccent] = useState('#e0161e')
+  const [inviteCode, setInviteCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState(null)
 
@@ -36,7 +37,11 @@ export default function Setup() {
         unit,
         accent_color: accent,
       })
-      setProfile(p)
+      let betaGranted = false
+      if (inviteCode.trim()) {
+        try { betaGranted = await useInviteCode(inviteCode.trim()) } catch { /* invalid code — non-fatal */ }
+      }
+      setProfile(betaGranted ? { ...p, beta: true } : p)
     } catch(e) { setErr(e.message) }
     setLoading(false)
   }
@@ -84,6 +89,10 @@ export default function Setup() {
               <button key={c} onClick={() => setAccent(c)} style={{ width:36, height:36, borderRadius:'50%', background:c, border:`2px solid ${accent===c?'#fff':'transparent'}`, boxShadow:accent===c?`0 0 0 2px ${c}`:'' }} />
             ))}
           </div>
+        </Field>
+
+        <Field label="BETA INVITE CODE (optional)">
+          <input style={INP} placeholder="e.g. BETA2026" value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} />
         </Field>
 
         {err && <div style={{ color:'var(--accent)', fontSize:13, padding:'10px 14px', background:'var(--accent-low)', borderRadius:'var(--radius-sm)' }}>{err}</div>}

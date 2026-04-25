@@ -1,4 +1,4 @@
-import { lazy, Suspense, Component } from 'react'
+import { lazy, Suspense, Component, Fragment } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -15,16 +15,16 @@ const Social = lazy(() => import('./pages/Social'))
 const Profile = lazy(() => import('./pages/Profile'))
 
 class ErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { error: null } }
+  constructor(props) { super(props); this.state = { error: null, retryKey: 0 } }
   static getDerivedStateFromError(e) { return { error: e } }
   render() {
     if (this.state.error) return (
       <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
         <div style={{ fontSize: 14, marginBottom: 8 }}>Something went wrong on this page.</div>
-        <button onClick={() => this.setState({ error: null })} style={{ background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', color: '#fff', fontWeight: 700, fontSize: 13 }}>Retry</button>
+        <button onClick={() => this.setState(s => ({ error: null, retryKey: s.retryKey + 1 }))} style={{ background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', color: '#fff', fontWeight: 700, fontSize: 13 }}>Retry</button>
       </div>
     )
-    return this.props.children
+    return <Fragment key={this.state.retryKey}>{this.props.children}</Fragment>
   }
 }
 

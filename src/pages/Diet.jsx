@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library'
 import { useAuth } from '../context/AuthContext'
 import { getDietByDate, addDietEntry, deleteDietEntry, getTodayCardioCalories, getSavedMeals, saveMeal, deleteSavedMeal } from '../lib/db'
 import { searchFood } from '../lib/food'
@@ -353,40 +354,62 @@ function BarcodeModal({ onFound, onClose }) {
   const [error, setError] = useState(null)
   const [scanning, setScanning] = useState(false)
   const videoRef = useRef()
-  const streamRef = useRef()
-  const scanFrame = useRef()
   const mountedRef = useRef(true)
+  const readerRef = useRef(null)
+  const nativeStreamRef = useRef(null)
+  const nativeScanRef = useRef(null)
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false; stopCamera() }
   }, [])
 
-  const stopCamera = () => {
-    if (scanFrame.current) cancelAnimationFrame(scanFrame.current)
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
+  const stopCamera = useCallback(() => {
+    // Stop ZXing reader
+    if (readerRef.current) {
+      try { BrowserMultiFormatReader.releaseAllStreams() } catch {}
+      readerRef.current = null
+    }
+    // Stop native BarcodeDetector stream
+    if (nativeScanRef.current) cancelAnimationFrame(nativeScanRef.current)
+    nativeStreamRef.current?.getTracks().forEach(t => t.stop())
+    nativeStreamRef.current = null
     if (mountedRef.current) setScanning(false)
-  }
+  }, [])
 
   const startCamera = async () => {
-    if (!('BarcodeDetector' in window)) return
-    try {
-      setScanning(true); setError(null)
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      streamRef.current = stream
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play() }
-      const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] })
-      const scan = async () => {
-        if (!mountedRef.current || !streamRef.current) return
-        try {
-          const codes = await detector.detect(videoRef.current)
-          if (codes.length > 0) { stopCamera(); lookup(codes[0].rawValue); return }
-        } catch {}
-        scanFrame.current = requestAnimationFrame(scan)
-      }
-      scanFrame.current = requestAnimationFrame(scan)
-    } catch { stopCamera(); setError('Camera unavailable') }
+    setScanning(true); setError(null)
+    if ('BarcodeDetector' in window) {
+      // Fast native path (Chrome/Edge/Safari 17.4+)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        nativeStreamRef.current = stream
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play() }
+        const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39'] })
+        const scan = async () => {
+          if (!mountedRef.current || !nativeStreamRef.current) return
+          try {
+            const codes = await detector.detect(videoRef.current)
+            if (codes.length > 0) { stopCamera(); lookup(codes[0].rawValue); return }
+          } catch {}
+          nativeScanRef.current = requestAnimationFrame(scan)
+        }
+        nativeScanRef.current = requestAnimationFrame(scan)
+      } catch { stopCamera(); setError('Camera unavailable') }
+    } else {
+      // ZXing fallback — works on all browsers
+      try {
+        const reader = new BrowserMultiFormatReader()
+        readerRef.current = reader
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices()
+        const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[0]?.deviceId
+        reader.decodeFromVideoDevice(deviceId || null, videoRef.current, (result, err) => {
+          if (!mountedRef.current) return
+          if (result) { stopCamera(); lookup(result.getText()); return }
+          if (err && !(err instanceof NotFoundException)) setError('Scanner error')
+        })
+      } catch { stopCamera(); setError('Camera unavailable') }
+    }
   }
 
   const lookup = async (code) => {
@@ -413,8 +436,6 @@ function BarcodeModal({ onFound, onClose }) {
     if (mountedRef.current) setLoading(false)
   }
 
-  const supportsDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window
-
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
       <div style={{ width: '100%', maxWidth: 400, background: 'var(--bg2)', borderRadius: 'var(--radius)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
@@ -423,21 +444,21 @@ function BarcodeModal({ onFound, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 22 }}>×</button>
         </div>
         <div style={{ padding: '16px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {supportsDetector && (
-            scanning ? (
-              <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
-                <video ref={videoRef} style={{ width: '100%', height: 200, objectFit: 'cover', display: 'block' }} playsInline muted />
-                <div style={{ position: 'absolute', inset: 0, border: '2px solid var(--accent)', borderRadius: 8, pointerEvents: 'none' }} />
-                <button onClick={stopCamera} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: 32, height: 32, fontSize: 18 }}>×</button>
-                <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: 20, whiteSpace: 'nowrap' }}>Point at barcode…</div>
+          {scanning ? (
+            <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+              <video ref={videoRef} style={{ width: '100%', height: 220, objectFit: 'cover', display: 'block' }} playsInline muted />
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '70%', height: 60, border: '2px solid var(--accent)', borderRadius: 6 }} />
               </div>
-            ) : (
-              <button onClick={startCamera} style={{ width: '100%', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 13, color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <BarcodeIcon size={18} /> Open Camera
-              </button>
-            )
+              <button onClick={stopCamera} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: 32, height: 32, fontSize: 18 }}>×</button>
+              <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: 20, whiteSpace: 'nowrap' }}>Align barcode within frame…</div>
+            </div>
+          ) : (
+            <button onClick={startCamera} style={{ width: '100%', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 13, color: '#fff', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <BarcodeIcon size={18} /> Open Camera
+            </button>
           )}
-          <div style={{ fontSize: 11, textAlign: 'center', color: 'var(--text-muted)' }}>{supportsDetector ? 'or enter barcode manually' : 'Enter barcode number'}</div>
+          <div style={{ fontSize: 11, textAlign: 'center', color: 'var(--text-muted)' }}>or enter barcode manually</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               style={{ ...INP_MODAL, flex: 1 }}
@@ -447,7 +468,6 @@ function BarcodeModal({ onFound, onClose }) {
               value={val}
               onChange={e => setVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && lookup(val)}
-              autoFocus={!supportsDetector}
             />
             <button onClick={() => lookup(val)} disabled={loading || !val.trim()} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0 18px', color: '#fff', fontWeight: 700, fontSize: 14, opacity: (!val.trim() || loading) ? 0.6 : 1 }}>
               {loading ? '…' : 'GO'}

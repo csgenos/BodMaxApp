@@ -85,8 +85,10 @@ export default function Session() {
 
   useEffect(() => { if (profile) load() }, [profile?.id])
   const load = async () => {
-    const [s, t, cx] = await Promise.all([getSessions(profile.id), getTemplates(profile.id), getCustomExercises(profile.id)])
-    setSessions(s); setTemplates(t); setCustomExercises(cx)
+    try {
+      const [s, t, cx] = await Promise.all([getSessions(profile.id), getTemplates(profile.id), getCustomExercises(profile.id)])
+      setSessions(s); setTemplates(t); setCustomExercises(cx)
+    } catch(e) { setError('Failed to load: ' + e.message) }
   }
 
   // Persist / clear the in-progress session on every change. Elapsed is
@@ -446,6 +448,8 @@ export default function Session() {
       </div>
 
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <button onClick={()=>setShowPicker(true)} style={{ background:'var(--accent)', border:'none', borderRadius:'var(--radius)', padding:14, color:'#fff', fontSize:14, fontWeight:700, letterSpacing:'0.5px' }}>+ ADD EXERCISE</button>
+
         {active.exercises.map(ex => (
           <div key={ex.id} className="card" style={{ padding: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -545,7 +549,6 @@ export default function Session() {
 
         {error && <div style={{ padding: '10px 14px', background: 'rgba(224,22,30,0.1)', border: '1px solid var(--accent)', borderRadius: 8, color: 'var(--accent)', fontSize: 13 }}>{error}</div>}
 
-        <button onClick={()=>setShowPicker(true)} style={{ background:'transparent', border:'1px dashed var(--border)', borderRadius:'var(--radius)', padding:14, color:'var(--text-dim)', fontSize:14, fontWeight:600 }}>+ ADD EXERCISE</button>
         <button onClick={()=>setShowCardio(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:12, color:'var(--text-muted)', fontSize:12 }}>+ ADD CARDIO</button>
         {active.exercises.length > 0 && (
           <button onClick={()=>setShowSaveTpl(true)} style={{ background:'transparent', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:10, color:'var(--text-muted)', fontSize:11, letterSpacing:'1px', fontWeight:700 }}>SAVE AS TEMPLATE</button>
@@ -826,8 +829,8 @@ function ExercisePicker({ group, onGroupChange, onSelect, onClose, customExercis
             <span className="label">ADD EXERCISE</span>
             <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-dim)', fontSize:22 }}>×</button>
           </div>
-          <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:12, paddingLeft:20, paddingRight:20, WebkitOverflowScrolling:'touch' }}>
-            {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding:'6px 14px', borderRadius:20, border:'none', background:group===g?'var(--accent)':'var(--bg3)', color:group===g?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600, flexShrink:0 }}>{g}</button>)}
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap', padding:'0 20px 12px' }}>
+            {MUSCLE_GROUPS.map(g => <button key={g} onClick={() => onGroupChange(g)} style={{ padding:'7px 14px', borderRadius:20, border:'none', background:group===g?'var(--accent)':'var(--bg3)', color:group===g?'#fff':'var(--text-dim)', fontSize:12, fontWeight:600 }}>{g}</button>)}
           </div>
         </div>
         <div style={{ overflowY:'auto', padding:'16px 20px 40px', flex:1 }}>

@@ -50,6 +50,16 @@ export default function Profile() {
   const achievements = useMemo(() => getAchievements(sessions, prs, streak.best, { beta: profile?.beta }), [sessions, prs, streak.best, profile?.beta])
   const earnedCount = achievements.filter(a => a.earned).length
 
+  useEffect(() => {
+    if (!editing) return
+    const c = form.accent_color
+    if (!c || !/^#[0-9a-fA-F]{6}$/.test(c)) return
+    document.documentElement.style.setProperty('--accent', c)
+    const hex = c.slice(1)
+    const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16)
+    document.documentElement.style.setProperty('--accent-low', `rgba(${r},${g},${b},0.12)`)
+  }, [editing, form.accent_color])
+
   const saveProfile = async () => {
     if (saving) return
     setSaving(true); setError(null)
@@ -245,9 +255,23 @@ export default function Profile() {
                       <button key={c} onClick={() => setForm(f => ({ ...f, accent_color: c }))} style={{ width: 36, height: 36, borderRadius: '50%', background: c, border: `2px solid ${form.accent_color === c ? '#fff' : 'transparent'}`, boxShadow: form.accent_color === c ? `0 0 0 2px ${c}` : 'none', flexShrink: 0 }} />
                     ))}
                     {/* Custom colour — rainbow swatch opens native picker */}
-                    <label title="Custom colour" style={{ width: 36, height: 36, borderRadius: '50%', background: 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)', border: `2px solid ${!ACCENTS.includes(form.accent_color) ? '#fff' : 'transparent'}`, boxShadow: !ACCENTS.includes(form.accent_color) ? `0 0 0 2px ${form.accent_color}` : 'none', cursor: 'pointer', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
-                      <input type="color" value={form.accent_color || '#e0161e'} onChange={e => setForm(f => ({ ...f, accent_color: e.target.value }))} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                    <label title="Custom colour" style={{ width: 36, height: 36, borderRadius: '50%', background: 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)', border: `2px solid ${!ACCENTS.includes(form.accent_color) ? '#fff' : 'transparent'}`, boxShadow: !ACCENTS.includes(form.accent_color) ? `0 0 0 2px ${form.accent_color}` : 'none', cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
+                      <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(form.accent_color||'') ? form.accent_color : '#e0161e'} onChange={e => setForm(f => ({ ...f, accent_color: e.target.value }))} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
                     </label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: /^#[0-9a-fA-F]{6}$/.test(form.accent_color||'') ? form.accent_color : 'var(--border)', flexShrink: 0, border: '2px solid var(--border)' }} />
+                    <input
+                      type="text"
+                      value={form.accent_color || ''}
+                      onChange={e => {
+                        const v = e.target.value.startsWith('#') ? e.target.value : '#' + e.target.value
+                        setForm(f => ({ ...f, accent_color: v }))
+                      }}
+                      placeholder="#e0161e"
+                      maxLength={7}
+                      style={{ ...INP, fontFamily: 'var(--mono)', fontSize: 13, flex: 1, padding: '8px 12px' }}
+                    />
                   </div>
                 </Field>
                 <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
