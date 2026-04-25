@@ -300,7 +300,20 @@ export default function Profile() {
                   </button>
                 </div>
                 {/* Subscription */}
-                {isPremium(profile) ? (
+                {profile?.beta ? (
+                  <div className="card" style={{ padding: '14px 16px', border: '1px solid #22c55e', background: 'rgba(34,197,94,0.06)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div className="label" style={{ color: '#22c55e' }}>BETA ACCESS</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#22c55e', marginTop: 3 }}>✦ BodMax Premium</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, lineHeight: 1.5 }}>
+                          As a beta user, you get Premium free — forever. Thank you for being here from the start.
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 28, marginLeft: 12, flexShrink: 0 }}>🎁</div>
+                    </div>
+                  </div>
+                ) : isPremium(profile) ? (
                   <div className="card" style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                       <div>
