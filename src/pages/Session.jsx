@@ -4,12 +4,13 @@ import {
   getSessions, saveSession, updateSession, deleteSession, checkAndUpdatePR, getLastExerciseSets,
   getTemplates, saveTemplate, deleteTemplate, updateProfile,
   getCustomExercises, saveCustomExercise, deleteCustomExercise,
+  getPostSessionCoach,
 } from '../lib/db'
 import { MUSCLE_GROUPS, EXERCISES, CARDIO_TYPES, calcSessionVolume } from '../lib/ranks'
 import { getNotifPermission, requestNotifPermission, showTimerNotification, subscribePush, isPushSubscribed } from '../lib/notifications'
 import { haptic } from '../lib/haptics'
 import { audio } from '../lib/audio'
-import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, MedalIcon, CameraIcon, EditIcon, TrashIcon, ListIcon, BikeIcon } from '../lib/icons'
+import { TargetIcon, FlameIcon, DumbbellIcon, BoltIcon, TrophyIcon, CrownIcon, StarIcon, MedalIcon, CameraIcon, EditIcon, TrashIcon, ListIcon, BikeIcon, SparkleIcon } from '../lib/icons'
 import { estimateCalories } from '../lib/food'
 
 const REP_RANGE_KEY = 'bm_rep_ranges'
@@ -37,7 +38,7 @@ const loadActive = () => {
 }
 
 export default function Session() {
-  const { profile, setProfile } = useAuth()
+  const { profile, setProfile, isSubscribed, user } = useAuth()
   const unit = profile?.unit || 'lbs'
   const distUnit = unit === 'kg' ? 'km' : 'mi'
   const weightKg = profile?.weight ? (unit === 'kg' ? +profile.weight : Math.round(+profile.weight / 2.205)) : 70
@@ -55,6 +56,7 @@ export default function Session() {
   const [pickerGroup, setPickerGroup] = useState(MUSCLE_GROUPS[0])
   const [summary, setSummary] = useState(null)
   const [newPRs, setNewPRs] = useState([])
+  const [coachCard, setCoachCard] = useState(null)
   const [calMonth, setCalMonth] = useState(new Date())
   const [suggestions, setSuggestions] = useState({}) // exerciseName -> sets
   const [isEditing, setIsEditing] = useState(false)
@@ -331,9 +333,17 @@ export default function Session() {
         await load()
         setNewPRs(prs)
         setSummary(sess)
+        setCoachCard(null)
         setActive(null)
         setMilestone(hitSessionMilestone ? MILESTONE_LABELS[newCount] : prs.length > 0 ? { Icon: FlameIcon, label: `New PR — ${prs[0]}!` } : null)
         setView('summary')
+        if (isSubscribed && user) {
+          const exSummary = sess.exercises
+            .map(ex => `${ex.name}: ${(ex.sets || []).filter(s => s.weight && s.reps).map(s => `${s.weight}×${s.reps}`).join(', ')}`)
+            .join('\n')
+          const sessionSummary = `Duration: ${Math.floor(elapsed / 60)} min\n${exSummary}`
+          getPostSessionCoach(user.id, sessionSummary).then(c => setCoachCard(c)).catch(() => {})
+        }
       }
     } catch(e) { setError('Save failed: ' + e.message) }
     setSaving(false)
@@ -426,7 +436,18 @@ export default function Session() {
           SHARE WORKOUT
         </button>
       )}
-      <button onClick={() => { setSummary(null); setNewPRs([]); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
+      {coachCard && (
+        <div style={{ background: 'var(--bg2)', borderLeft: '3px solid var(--accent)', borderRadius: 12, padding: 16, marginBottom: 12, textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ color: 'var(--accent)' }}><SparkleIcon size={14} /></span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>COACH ANALYSIS</span>
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{coachCard.headline}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 6 }}>{coachCard.body}</div>
+          {coachCard.action && <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>→ {coachCard.action}</div>}
+        </div>
+      )}
+      <button onClick={() => { setSummary(null); setNewPRs([]); setCoachCard(null); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
     </div>
   )
 

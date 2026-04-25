@@ -1,20 +1,23 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getSessions, getDietByDate, getPRs } from '../lib/db'
+import { getSessions, getDietByDate, getPRs, getDailyInsight } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
 import { calcStreak, sessionsThisWeek, sessionsLastWeek, weeklyVolume } from '../lib/streaks'
-import { FlameIcon, ZzzIcon, TrophyIcon, AlertIcon } from '../lib/icons'
+import { FlameIcon, ZzzIcon, TrophyIcon, AlertIcon, SparkleIcon } from '../lib/icons'
 
 const todayDate = () => new Date().toISOString().split('T')[0]
 
 export default function Dashboard() {
-  const { profile } = useAuth()
+  const { profile, user, isSubscribed } = useAuth()
+  const nav = useNavigate()
   const unit = profile?.unit || 'lbs'
   const [sessions, setSessions] = useState([])
   const [volumes, setVolumes] = useState({})
   const [todayDiet, setTodayDiet] = useState([])
   const [prs, setPRs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [coachInsight, setCoachInsight] = useState(null)
   const mounted = useRef(true)
 
   useEffect(() => {
@@ -32,6 +35,11 @@ export default function Dashboard() {
       if (!mounted.current) return
       setSessions(s); setVolumes(calcVolumes(s)); setTodayDiet(diet); setPRs(p)
     }).finally(() => { if (mounted.current) setLoading(false) })
+
+    if (isSubscribed && user) {
+      const profileSummary = `Goal: ${profile.goal || 'build muscle'}, Unit: ${profile.unit || 'lbs'}`
+      getDailyInsight(user.id, profileSummary).then(i => { if (mounted.current) setCoachInsight(i) }).catch(() => {})
+    }
   }, [profile?.id])
 
   const streak = useMemo(() => calcStreak(sessions), [sessions])
@@ -213,6 +221,25 @@ export default function Dashboard() {
                 </div>
               )
             })}
+          </div>
+        </Section>
+      )}
+
+      {/* AI Coach Insight */}
+      {coachInsight && (
+        <Section label="AI Coach">
+          <div
+            onClick={() => nav('/coach')}
+            style={{ background: 'var(--bg2)', borderLeft: '3px solid var(--accent)', borderRadius: 'var(--radius)', padding: '14px 16px', cursor: 'pointer', display: 'flex', gap: 12, alignItems: 'flex-start' }}
+          >
+            <span style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }}><SparkleIcon size={18} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{coachInsight.headline}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{coachInsight.body}</div>
+              {coachInsight.action && (
+                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginTop: 6 }}>→ {coachInsight.action}</div>
+              )}
+            </div>
           </div>
         </Section>
       )}
