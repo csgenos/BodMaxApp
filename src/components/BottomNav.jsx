@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { SparkleIcon } from '../lib/icons'
 
 const HomeIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -52,6 +53,7 @@ const TABS = [
   { path: '/diet',     label: 'Fuel',    Icon: FuelIcon    },
   { path: '/progress', label: 'Track',   Icon: TrackIcon   },
   { path: '/social',   label: 'Connect', Icon: ConnectIcon },
+  { path: '/coach',    label: 'Coach',   Icon: SparkleIcon },
   { path: '/profile',  label: 'You',     Icon: YouIcon     },
 ]
 

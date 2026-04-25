@@ -92,8 +92,10 @@ export function AuthProvider({ children }) {
   }
   const markRequestsSeen = () => setSocialCounts(prev => ({ ...prev, requests: 0 }))
 
+  const isSubscribed = profile?.subscription_status === 'active' || profile?.beta === true
+
   return (
-    <AuthContext.Provider value={{ user, profile, setProfile, refreshProfile: () => user && loadProfile(user.id), signOut: () => supabase.auth.signOut(), isRecovering, clearRecovery, theme, toggleTheme, uiScale, setUiScale, socialCounts, updateSocialCounts, markFeedSeen, markRequestsSeen }}>
+    <AuthContext.Provider value={{ user, profile, setProfile, refreshProfile: () => user && loadProfile(user.id), isSubscribed, signOut: () => supabase.auth.signOut(), isRecovering, clearRecovery, theme, toggleTheme, uiScale, setUiScale, socialCounts, updateSocialCounts, markFeedSeen, markRequestsSeen }}>
       {children}
     </AuthContext.Provider>
   )

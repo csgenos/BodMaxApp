@@ -499,6 +499,84 @@ export const useInviteCode = async (code) => {
   return !!data
 }
 
+// ── AI COACH + STRIPE ────────────────────────────────────
+export const createStripeCheckout = async (userId) => {
+  const { data, error } = await supabase.functions.invoke('stripe-checkout', { body: { userId } })
+  if (error) throw error
+  return data
+}
+
+export const getCoachInsight = async (userId, type) => {
+  const { data } = await supabase
+    .from('coach_insights')
+    .select('content, metadata')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  try { return { ...JSON.parse(data.content), metadata: data.metadata } } catch { return null }
+}
+
+export const getCoachMessages = async (userId, limit = 40) => {
+  const { data } = await supabase
+    .from('coach_messages')
+    .select('id, role, content, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+  return data || []
+}
+
+export const askCoach = async (userId, message, profileSummary) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-coach`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ type: 'ask', message, profileSummary }),
+  })
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Coach error') }
+  return res.json()
+}
+
+export const getPostSessionCoach = async (userId, sessionSummary) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-coach`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ type: 'post_session', sessionSummary }),
+  })
+  if (!res.ok) return null
+  const d = await res.json()
+  return d.insight || null
+}
+
+export const getDailyInsight = async (userId, profileSummary) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-coach`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token}`,
+      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ type: 'daily_insight', profileSummary }),
+  })
+  if (!res.ok) return null
+  const d = await res.json()
+  return d.insight || null
+}
+
 export const addFeedback = async (userId, message, rating) => {
   const { error } = await supabase.from('feedback').insert({ user_id: userId, message, rating: rating || null })
   if (error) throw error
