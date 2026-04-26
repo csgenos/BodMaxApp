@@ -23,6 +23,9 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const TO_EMAIL       = Deno.env.get('FEEDBACK_EMAIL')!
 const FROM_EMAIL     = Deno.env.get('FROM_EMAIL') || 'BodMax <feedback@getbodmax.com>'
 
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
@@ -41,8 +44,8 @@ serve(async (req) => {
   }
 
   const rating    = typeof record.rating === 'number' ? record.rating : null
-  const message   = String(record.message)
-  const userId    = String(record.user_id ?? 'unknown')
+  const message   = esc(String(record.message))
+  const userId    = esc(String(record.user_id ?? 'unknown'))
   const createdAt = record.created_at ? new Date(String(record.created_at)).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown'
 
   const stars   = rating ? '⭐'.repeat(rating) : null

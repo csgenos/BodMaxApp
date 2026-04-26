@@ -25,13 +25,19 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
+  const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+  const safeUserId = (meta?: Record<string, string>) => {
+    const id = meta?.userId
+    return id && isUUID(id) ? id : undefined
+  }
+
   const sub = event.data.object as Stripe.Subscription
 
   if (
     event.type === 'customer.subscription.created' ||
     event.type === 'customer.subscription.updated'
   ) {
-    const userId = sub.metadata?.userId
+    const userId = safeUserId(sub.metadata)
     const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
     const status = sub.status === 'active' || sub.status === 'trialing' ? 'active' : 'canceled'
 
@@ -50,7 +56,7 @@ serve(async (req) => {
   }
 
   if (event.type === 'customer.subscription.deleted') {
-    const userId = sub.metadata?.userId
+    const userId = safeUserId(sub.metadata)
     const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id
 
     if (userId) {
