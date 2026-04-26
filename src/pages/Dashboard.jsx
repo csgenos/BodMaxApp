@@ -350,11 +350,43 @@ const ONBOARD_STEPS = [
   },
 ]
 
+// Tab order must match BottomNav TABS array exactly
+const NAV_TABS = ['Home', 'Train', 'Fuel', 'Track', 'Connect', 'Coach', 'You']
+const NAV_COUNT = NAV_TABS.length
+
+function TabHighlight({ label }) {
+  const idx = NAV_TABS.indexOf(label)
+  if (idx === -1) return null
+  const leftPct = (idx / NAV_COUNT) * 100
+  const widthPct = 100 / NAV_COUNT
+  return (
+    <div
+      className="onboard-tab-highlight"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: `${leftPct}%`,
+        width: `${widthPct}%`,
+        height: 68,
+        borderRadius: 12,
+        background: 'rgba(224,22,30,0.15)',
+        border: '2px solid var(--accent)',
+        boxSizing: 'border-box',
+        pointerEvents: 'none',
+        zIndex: 301,
+      }}
+    />
+  )
+}
+
 function OnboardingOverlay({ step, onNext, onSkip }) {
   const s = ONBOARD_STEPS[step]
   if (!s) return null
+  // Leave space above nav (≈68px) so card doesn't sit on top of the highlight
+  const bottomPad = s.highlight ? 88 : 100
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: '0 0 100px' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: `0 0 ${bottomPad}px` }}>
+      {s.highlight && <TabHighlight label={s.highlight} />}
       <div style={{ background: 'var(--bg2)', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 420, margin: '0 16px', boxShadow: '0 -4px 40px rgba(0,0,0,0.4)' }}>
         <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>{s.emoji}</div>
