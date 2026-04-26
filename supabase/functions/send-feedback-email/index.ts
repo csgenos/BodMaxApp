@@ -5,7 +5,7 @@ const TO_EMAIL = Deno.env.get('FEEDBACK_EMAIL') || 'feedback@bodmax.app'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } })
+    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': Deno.env.get('APP_URL') || 'https://getbodmax.com', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } })
   }
 
   try {

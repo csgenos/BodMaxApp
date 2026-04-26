@@ -1,7 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
+const ALLOWED_ORIGIN = Deno.env.get('APP_URL') || 'https://getbodmax.com'
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
@@ -19,14 +20,16 @@ serve(async (req) => {
     }
 
     const appUrl = Deno.env.get('APP_URL') || 'https://getbodmax.com'
+    const safeUrl = (url: string | undefined, fallback: string) =>
+      url?.startsWith(appUrl) ? url : fallback
     const params = new URLSearchParams({
       mode: 'subscription',
       'line_items[0][price]': STRIPE_PRICE_ID,
       'line_items[0][quantity]': '1',
       'metadata[userId]': userId,
       'subscription_data[metadata][userId]': userId,
-      success_url: successUrl || `${appUrl}/coach?subscribed=1`,
-      cancel_url: cancelUrl || `${appUrl}/coach`,
+      success_url: safeUrl(successUrl, `${appUrl}/coach?subscribed=1`),
+      cancel_url: safeUrl(cancelUrl, `${appUrl}/coach`),
       'payment_method_types[0]': 'card',
     })
 
