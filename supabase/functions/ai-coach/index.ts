@@ -112,6 +112,16 @@ Give practical, direct answers. Max 3 sentences unless detail is genuinely neede
 async function handlePostSession(supabase: any, userId: string, sessionSummary: string, profile: any) {
   if (!sessionSummary) return json({ error: 'Session summary required' }, 400)
 
+  // Rate limit: 20 post-session analyses per day
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
+  const { count } = await supabase
+    .from('coach_insights')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('type', 'post_session')
+    .gte('created_at', dayStart.toISOString())
+  if ((count || 0) >= 20) return json({ insight: null })
+
   const systemPrompt = `You are BodMax AI Coach. Analyze this workout and give ONE specific, actionable insight.
 Respond with valid JSON only: {"headline": "short title", "body": "2-3 sentence analysis", "action": "one specific tip for next session"}
 No markdown, no extra text — pure JSON.`
