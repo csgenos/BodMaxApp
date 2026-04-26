@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   getSessions, saveSession, updateSession, deleteSession, checkAndUpdatePR, getLastExerciseSets,
@@ -40,6 +41,7 @@ const loadActive = () => {
 
 export default function Session() {
   const { profile, setProfile, isSubscribed, user } = useAuth()
+  const navigate = useNavigate()
   const unit = profile?.unit || 'lbs'
   const distUnit = unit === 'kg' ? 'km' : 'mi'
   const weightKg = profile?.weight ? (unit === 'kg' ? +profile.weight : Math.round(+profile.weight / 2.205)) : 70
@@ -79,6 +81,7 @@ export default function Session() {
   const [editingRange, setEditingRange] = useState(null)
   const [rangeForm, setRangeForm] = useState({ min: '', max: '' })
   const [milestone, setMilestone] = useState(null)
+  const [prCelebration, setPrCelebration] = useState(null)
   const restIntervalRef = useRef(null)
   const [restSeconds, setRestSeconds] = useState(0)
   const [restActive, setRestActive] = useState(false)
@@ -343,7 +346,8 @@ export default function Session() {
         setSummary(sess)
         setCoachCard(null)
         setActive(null)
-        setMilestone(hitSessionMilestone ? MILESTONE_LABELS[newCount] : prs.length > 0 ? { Icon: FlameIcon, label: `New PR — ${prs[0]}!` } : null)
+        setMilestone(hitSessionMilestone ? MILESTONE_LABELS[newCount] : null)
+        if (prs.length > 0) setPrCelebration(prs)
         setView('summary')
         if (isSubscribed && user) {
           const exSummary = sess.exercises
@@ -366,6 +370,7 @@ export default function Session() {
   if (view === 'summary' && summary) return (
     <div className="page" style={{ padding:'var(--page-top) 20px 24px', textAlign:'center' }}>
       {milestone && <MilestoneCelebration Icon={milestone.Icon} label={milestone.label} onDone={() => setMilestone(null)} />}
+      {!milestone && prCelebration && <PRCelebration prs={prCelebration} onDone={() => setPrCelebration(null)} />}
       <div style={{ marginBottom:16, color:'var(--accent)' }}><TrophyIcon size={48} /></div>
       <h2 style={{ fontSize:28, fontWeight:800, marginBottom:4 }}>Session Done</h2>
       <div style={{ color:'var(--text-dim)', marginBottom:20 }}>{fmtTime(summary.duration||0)} · {(summary.exercises||[]).length} exercises</div>
@@ -455,7 +460,7 @@ export default function Session() {
           {coachCard.action && <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>→ {coachCard.action}</div>}
         </div>
       )}
-      <button onClick={() => { setSummary(null); setNewPRs([]); setCoachCard(null); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
+      <button onClick={() => { setSummary(null); setNewPRs([]); setCoachCard(null); setPrCelebration(null); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
     </div>
   )
 
@@ -704,9 +709,14 @@ export default function Session() {
         </button>
         <button onClick={()=>setShowTemplates(true)} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:16, fontSize:14, fontWeight:600 }}>Template</button>
       </div>
-      <button onClick={() => setView('split')} style={{ width:'100%', background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, marginBottom:20, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-        <ListIcon size={16} /> Weekly Split
-      </button>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+        <button onClick={() => setView('split')} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          <ListIcon size={16} /> Weekly Split
+        </button>
+        <button onClick={() => navigate('/programs')} style={{ flex:1, background:'var(--bg3)', color:'var(--text)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'14px 0', fontSize:14, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          <DumbbellIcon size={16} /> Programs
+        </button>
+      </div>
 
       {sessions.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-dim)', fontSize: 14 }}>No sessions yet — start lifting</div>
@@ -988,6 +998,46 @@ function CardioModal({ onAdd, onClose, distUnit = 'mi', weightKg = 70 }) {
       </div>
       <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
     </Modal>
+  )
+}
+
+function PRCelebration({ prs, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 4000); return () => clearTimeout(t) }, [])
+  const particles = Array.from({ length: 40 }, (_, i) => {
+    const angle = (i / 40) * 360
+    const dist = 60 + Math.random() * 120
+    const size = 5 + Math.random() * 10
+    const colors = ['var(--accent)', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#fff']
+    const color = colors[i % colors.length]
+    return { angle, dist, size, color, delay: Math.random() * 0.6 }
+  })
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.82)', animation: 'fadeInOut 4s ease forwards' }}
+      onClick={onDone}
+    >
+      <style>{`
+        @keyframes prBurst { 0%{transform:translate(-50%,-50%) scale(0);opacity:1} 25%{transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(1);opacity:1} 100%{transform:translate(calc(-50% + var(--tx)),calc(-50% + var(--ty))) scale(0.4);opacity:0} }
+        @keyframes prPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+      `}</style>
+      {particles.map((p, i) => {
+        const tx = Math.cos(p.angle * Math.PI / 180) * p.dist
+        const ty = Math.sin(p.angle * Math.PI / 180) * p.dist
+        return (
+          <div key={i} style={{ position: 'absolute', top: '50%', left: '50%', width: p.size, height: p.size, borderRadius: i % 3 === 0 ? 2 : '50%', background: p.color, '--tx': `${tx}px`, '--ty': `${ty}px`, animation: `prBurst 1.4s ${p.delay}s ease-out forwards`, transform: 'translate(-50%,-50%) scale(0)' }} />
+        )
+      })}
+      <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, animation: 'prPulse 1.2s ease-in-out infinite' }}>
+        <div style={{ fontSize: 64, lineHeight: 1, marginBottom: 12 }}>🏆</div>
+        <div style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: '-1px', marginBottom: 8 }}>NEW PR{prs.length > 1 ? 's' : ''}!</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+          {prs.map(pr => (
+            <div key={pr} style={{ background: 'var(--accent)', color: '#fff', borderRadius: 8, padding: '6px 18px', fontSize: 15, fontWeight: 700 }}>{pr}</div>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 16 }}>tap to dismiss</div>
+      </div>
+    </div>
   )
 }
 

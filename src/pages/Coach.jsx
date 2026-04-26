@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { createStripeCheckout, getDailyInsight, getCoachMessages, askCoach } from '../lib/db'
 import { SparkleIcon, BoltIcon, TargetIcon, FlameIcon } from '../lib/icons'
 
+const TRIAL_LIMIT = 3
+
 export default function Coach() {
   const { user, profile, isSubscribed, refreshProfile } = useAuth()
   const location = useLocation()
@@ -13,20 +15,29 @@ export default function Coach() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [trialUses, setTrialUses] = useState(profile?.ai_coach_trial_uses ?? 0)
   const bottomRef = useRef(null)
 
-  // Handle ?subscribed=1 redirect from Stripe
   useEffect(() => {
     if (new URLSearchParams(location.search).get('subscribed') === '1') {
       refreshProfile()
     }
   }, [])
 
+  // Keep trial count in sync with profile
   useEffect(() => {
-    if (!isSubscribed) return
-    loadInsight()
-    loadMessages()
-  }, [isSubscribed])
+    setTrialUses(profile?.ai_coach_trial_uses ?? 0)
+  }, [profile?.ai_coach_trial_uses])
+
+  const trialRemaining = TRIAL_LIMIT - trialUses
+  const trialExhausted = !isSubscribed && trialRemaining <= 0
+  const isTrial = !isSubscribed && !trialExhausted
+
+  useEffect(() => {
+    if (!isSubscribed && trialExhausted) return
+    if (isSubscribed) { loadInsight(); loadMessages() }
+    else loadMessages() // trial users can see their chat history
+  }, [isSubscribed, trialExhausted])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -58,9 +69,15 @@ export default function Coach() {
     setMessages(m => [...m, optimistic])
     try {
       const profileSummary = profile ? `Goal: ${profile.goal || 'build muscle'}, Unit: ${profile.unit || 'lbs'}` : ''
-      const { reply } = await askCoach(user.id, msg, profileSummary)
+      const res = await askCoach(user.id, msg, profileSummary)
+      const { reply } = res
       const assistantMsg = { id: 'opt-a-' + Date.now(), role: 'assistant', content: reply }
       setMessages(m => [...m.filter(x => x.id !== optimistic.id), { ...optimistic, id: 'u-' + Date.now() }, assistantMsg])
+      // Update trial counter from response and refresh profile
+      if (!isSubscribed && res.trialUses != null) {
+        setTrialUses(res.trialUses)
+        refreshProfile()
+      }
     } catch (e) {
       setMessages(m => m.filter(x => x.id !== optimistic.id))
       setInput(msg)
@@ -79,7 +96,8 @@ export default function Coach() {
     setCheckoutLoading(false)
   }
 
-  if (!isSubscribed) return <UpsellView onUpgrade={handleUpgrade} loading={checkoutLoading} />
+  if (trialExhausted) return <UpsellView onUpgrade={handleUpgrade} loading={checkoutLoading} trialExhausted />
+  if (!isSubscribed && !isTrial) return <UpsellView onUpgrade={handleUpgrade} loading={checkoutLoading} />
 
   return (
     <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -94,11 +112,28 @@ export default function Coach() {
             Beta Access — all Coach features are on us. Thank you for testing!
           </div>
         )}
+
+        {/* Trial banner */}
+        {isTrial && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>Free Trial</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{trialRemaining} of {TRIAL_LIMIT} messages remaining</div>
+            </div>
+            <button
+              onClick={handleUpgrade}
+              disabled={checkoutLoading}
+              style={{ background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '7px 14px', color: '#fff', fontWeight: 700, fontSize: 12, opacity: checkoutLoading ? 0.7 : 1 }}
+            >
+              Upgrade
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 0' }}>
-        {/* Daily Insight */}
-        {insightLoading ? (
+        {/* Daily Insight — paid only */}
+        {isSubscribed && (insightLoading ? (
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, marginBottom: 16, opacity: 0.5 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Loading insight…</div>
           </div>
@@ -111,12 +146,14 @@ export default function Coach() {
               <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>→ {insight.action}</div>
             )}
           </div>
-        ) : null}
+        ) : null)}
 
         {/* Chat messages */}
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-            Ask me anything about your training, nutrition, or recovery.
+            {isTrial
+              ? `Try ${TRIAL_LIMIT} free messages. Ask me anything about training or nutrition.`
+              : 'Ask me anything about your training, nutrition, or recovery.'}
           </div>
         )}
         {messages.map((msg) => (
@@ -151,7 +188,7 @@ export default function Coach() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-          placeholder="Ask your coach…"
+          placeholder={isTrial ? `Ask your coach… (${trialRemaining} free left)` : 'Ask your coach…'}
           rows={1}
           style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px', color: 'var(--text)', fontSize: 14, resize: 'none', fontFamily: 'inherit', lineHeight: 1.4, maxHeight: 120, overflowY: 'auto' }}
         />
@@ -167,7 +204,7 @@ export default function Coach() {
   )
 }
 
-function UpsellView({ onUpgrade, loading }) {
+function UpsellView({ onUpgrade, loading, trialExhausted = false }) {
   const features = [
     { Icon: BoltIcon, title: 'Post-Workout Analysis', desc: 'Instant AI breakdown of every session — what worked, what to improve.' },
     { Icon: SparkleIcon, title: 'Daily Insights', desc: 'Personalized tips each morning tailored to your training history and goals.' },
@@ -178,9 +215,16 @@ function UpsellView({ onUpgrade, loading }) {
     <div className="page" style={{ padding: 'var(--page-top) 20px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
       <div style={{ color: 'var(--accent)', marginBottom: 12 }}><SparkleIcon size={40} /></div>
       <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>BodMax AI Coach</h1>
-      <p style={{ fontSize: 14, color: 'var(--text-dim)', marginBottom: 28, maxWidth: 300, lineHeight: 1.6 }}>
-        Your personal AI coach that learns your training, spots weaknesses, and keeps you progressing.
-      </p>
+
+      {trialExhausted ? (
+        <p style={{ fontSize: 14, color: 'var(--text-dim)', marginBottom: 28, maxWidth: 300, lineHeight: 1.6 }}>
+          You've used your {TRIAL_LIMIT} free messages. Upgrade to keep the momentum going with unlimited coaching.
+        </p>
+      ) : (
+        <p style={{ fontSize: 14, color: 'var(--text-dim)', marginBottom: 28, maxWidth: 300, lineHeight: 1.6 }}>
+          Your personal AI coach that learns your training, spots weaknesses, and keeps you progressing.
+        </p>
+      )}
 
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
         {features.map(({ Icon, title, desc }) => (

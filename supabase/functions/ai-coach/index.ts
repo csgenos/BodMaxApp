@@ -10,6 +10,10 @@ const CORS = {
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') })
 
+const PAID_MSG_LIMIT     = 50  // messages/day for subscribers
+const TRIAL_MSG_LIMIT    = 3   // lifetime asks for free trial
+const PAID_SESSION_LIMIT = 30  // post-session analyses/day for subscribers
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
@@ -29,18 +33,28 @@ serve(async (req) => {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name, goal, unit, subscription_status, beta')
+      .select('name, goal, unit, subscription_status, beta, ai_coach_trial_uses')
       .eq('id', user.id)
       .single()
 
     const isSubscribed = profile?.subscription_status === 'active' || profile?.beta === true
-    if (!isSubscribed) return json({ error: 'Subscription required' }, 403)
+    const trialUses = profile?.ai_coach_trial_uses ?? 0
+    const hasTrialRemaining = !isSubscribed && trialUses < TRIAL_MSG_LIMIT
+
+    if (!isSubscribed && !hasTrialRemaining) {
+      return json({ error: 'Subscription required', trialExhausted: true }, 403)
+    }
 
     const body = await req.json()
     const { type, sessionSummary, profileSummary } = body
 
+    // Trial users may only use the ask endpoint
+    if (!isSubscribed && type !== 'ask') {
+      return json({ error: 'Subscription required' }, 403)
+    }
+
     if (type === 'ask') {
-      return await handleAsk(supabase, user.id, body.message, profile, profileSummary)
+      return await handleAsk(supabase, user.id, body.message, profile, profileSummary, isSubscribed, trialUses)
     }
 
     if (type === 'post_session') {
@@ -57,23 +71,27 @@ serve(async (req) => {
   }
 })
 
-async function handleAsk(supabase: any, userId: string, message: string, profile: any, profileSummary: string) {
+async function handleAsk(
+  supabase: any, userId: string, message: string, profile: any,
+  profileSummary: string, isSubscribed: boolean, trialUses: number
+) {
   if (!message?.trim()) return json({ error: 'Message required' }, 400)
 
-  // Rate limit: 25 user messages per day
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
-  const { count } = await supabase
-    .from('coach_messages')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('role', 'user')
-    .gte('created_at', dayStart.toISOString())
+  if (isSubscribed) {
+    // Paid users: PAID_MSG_LIMIT messages per day
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
+    const { count } = await supabase
+      .from('coach_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('role', 'user')
+      .gte('created_at', dayStart.toISOString())
 
-  if ((count || 0) >= 25) {
-    return json({ reply: "You've reached the 25 message daily limit. Check back tomorrow!" })
+    if ((count || 0) >= PAID_MSG_LIMIT) {
+      return json({ reply: `You've reached the ${PAID_MSG_LIMIT} message daily limit. Check back tomorrow!` })
+    }
   }
 
-  // Fetch recent conversation history
   const { data: history } = await supabase
     .from('coach_messages')
     .select('role, content')
@@ -100,19 +118,27 @@ Give practical, direct answers. Max 3 sentences unless detail is genuinely neede
 
   const reply = resp.content[0].type === 'text' ? resp.content[0].text : ''
 
-  // Store both sides
   await supabase.from('coach_messages').insert([
     { user_id: userId, role: 'user', content: message },
     { user_id: userId, role: 'assistant', content: reply },
   ])
 
-  return json({ reply })
+  // Increment trial counter for free trial users
+  if (!isSubscribed) {
+    await supabase
+      .from('profiles')
+      .update({ ai_coach_trial_uses: trialUses + 1 })
+      .eq('id', userId)
+  }
+
+  const newTrialUses = isSubscribed ? null : trialUses + 1
+  return json({ reply, trialUses: newTrialUses, trialLimit: isSubscribed ? null : TRIAL_MSG_LIMIT })
 }
 
 async function handlePostSession(supabase: any, userId: string, sessionSummary: string, profile: any) {
   if (!sessionSummary) return json({ error: 'Session summary required' }, 400)
 
-  // Rate limit: 20 post-session analyses per day
+  // Rate limit: PAID_SESSION_LIMIT post-session analyses per day
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
   const { count } = await supabase
     .from('coach_insights')
@@ -120,7 +146,7 @@ async function handlePostSession(supabase: any, userId: string, sessionSummary: 
     .eq('user_id', userId)
     .eq('type', 'post_session')
     .gte('created_at', dayStart.toISOString())
-  if ((count || 0) >= 20) return json({ insight: null })
+  if ((count || 0) >= PAID_SESSION_LIMIT) return json({ insight: null })
 
   const systemPrompt = `You are BodMax AI Coach. Analyze this workout and give ONE specific, actionable insight.
 Respond with valid JSON only: {"headline": "short title", "body": "2-3 sentence analysis", "action": "one specific tip for next session"}
@@ -141,7 +167,6 @@ No markdown, no extra text — pure JSON.`
 }
 
 async function handleDailyInsight(supabase: any, userId: string, profile: any, profileSummary: string) {
-  // Check cache
   const { data: cached } = await supabase
     .from('coach_insights')
     .select('content')
@@ -173,7 +198,6 @@ No markdown, no extra text — pure JSON.`
   let insight = { headline: 'Stay consistent', body: 'Every session counts toward your goal.', action: 'Show up today.' }
   try { insight = JSON.parse(text) } catch { /* fallback */ }
 
-  // Cache for 24 hours
   const expires = new Date(); expires.setHours(expires.getHours() + 24)
   await supabase.from('coach_insights').insert({
     user_id: userId,

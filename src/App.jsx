@@ -15,6 +15,7 @@ const Progress = lazy(() => import('./pages/Progress'))
 const Social = lazy(() => import('./pages/Social'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Coach = lazy(() => import('./pages/Coach'))
+const Programs = lazy(() => import('./pages/Programs'))
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null, retryKey: 0 } }
@@ -69,6 +70,7 @@ function Inner() {
               <Route path="/social" element={<Social />} />
               <Route path="/coach" element={<Coach />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/programs" element={<Programs />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </ErrorBoundary>

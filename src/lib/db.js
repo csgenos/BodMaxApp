@@ -588,6 +588,61 @@ export const getDailyInsight = async (userId, profileSummary) => {
   return d.insight || null
 }
 
+// ── WORKOUT PROGRAMS ─────────────────────────────────────
+export const getPrograms = async () => {
+  const { data, error } = await supabase
+    .from('workout_programs')
+    .select('id, name, description, days_per_week, duration_weeks, is_premium, program_data')
+    .eq('is_public', true)
+    .order('is_premium', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+export const getUserProgram = async (userId) => {
+  const { data } = await supabase
+    .from('user_programs')
+    .select('id, program_id, started_at, current_day, workout_programs(id, name, description, days_per_week, duration_weeks, is_premium, program_data)')
+    .eq('user_id', userId)
+    .is('completed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data || null
+}
+
+export const startProgram = async (userId, programId) => {
+  await supabase
+    .from('user_programs')
+    .update({ completed_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('completed_at', null)
+  const { data, error } = await supabase
+    .from('user_programs')
+    .insert({ user_id: userId, program_id: programId, current_day: 1 })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export const updateProgramDay = async (userProgramId, userId, currentDay) => {
+  const { error } = await supabase
+    .from('user_programs')
+    .update({ current_day: currentDay })
+    .eq('id', userProgramId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+export const quitProgram = async (userProgramId, userId) => {
+  await supabase
+    .from('user_programs')
+    .update({ completed_at: new Date().toISOString() })
+    .eq('id', userProgramId)
+    .eq('user_id', userId)
+}
+
 export const addFeedback = async (userId, message, rating) => {
   const { error } = await supabase.from('feedback').insert({ user_id: userId, message, rating: rating || null })
   if (error) throw error
