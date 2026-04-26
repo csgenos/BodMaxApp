@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import { getSessions, getPRs, updateProfile, addFeedback } from '../lib/db'
+import { supabase } from '../lib/supabase'
 import { TERMS_OF_SERVICE, PRIVACY_POLICY, LEGAL_EFFECTIVE_DATE } from '../lib/legal'
 import { calcVolumes, getRank, getRankProgress, getNextTier, getTotalVolume, MUSCLE_GROUPS } from '../lib/ranks'
 import { calcStreak } from '../lib/streaks'
@@ -25,6 +26,9 @@ export default function Profile() {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [showReset, setShowReset] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
   const [showFeedback, setShowFeedback] = useState(false)
   const [showLegal, setShowLegal] = useState(null) // 'tos' | 'pp' | null
   const [error, setError] = useState(null)
@@ -331,14 +335,48 @@ export default function Profile() {
                 </div>
                 <button onClick={signOut} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, color: 'var(--text-dim)', fontWeight: 600, fontSize: 14 }}>SIGN OUT</button>
                 {!showReset ? (
-                  <button onClick={() => setShowReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account data</button>
+                  <button onClick={() => { setShowReset(true); setDeleteConfirm(''); setDeleteError(null) }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>Delete account &amp; data</button>
                 ) : (
                   <div style={{ background: 'rgba(224,22,30,0.08)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: 16 }}>
-                    <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginBottom: 4 }}>Warning — this will sign you out</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>To fully delete your data, contact support after signing out.</div>
+                    <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700, marginBottom: 4 }}>Permanently delete account</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>This will immediately and permanently delete all your workouts, PRs, diet logs, and account. This cannot be undone.</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: 'var(--mono)', marginBottom: 6 }}>Type DELETE to confirm</div>
+                    <input
+                      value={deleteConfirm}
+                      onChange={e => { setDeleteConfirm(e.target.value); setDeleteError(null) }}
+                      placeholder="DELETE"
+                      style={{ background: 'var(--bg3)', border: `1px solid ${deleteConfirm === 'DELETE' ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', color: 'var(--text)', padding: '10px 12px', fontSize: 13, width: '100%', marginBottom: 10, boxSizing: 'border-box', fontFamily: 'var(--mono)' }}
+                    />
+                    {deleteError && <div style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 8 }}>{deleteError}</div>}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setShowReset(false)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 10, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>
-                      <button onClick={signOut} style={{ flex: 1, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 10, color: '#fff', fontWeight: 700 }}>SIGN OUT</button>
+                      <button onClick={() => setShowReset(false)} disabled={deleting} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 10, color: 'var(--text-dim)', fontWeight: 600 }}>Cancel</button>
+                      <button
+                        disabled={deleteConfirm !== 'DELETE' || deleting}
+                        onClick={async () => {
+                          setDeleting(true)
+                          setDeleteError(null)
+                          try {
+                            const { data: { session } } = await supabase.auth.getSession()
+                            const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${session?.access_token}`,
+                                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                              },
+                            })
+                            if (!res.ok) {
+                              const e = await res.json()
+                              throw new Error(e.error || 'Deletion failed')
+                            }
+                            await signOut()
+                          } catch (err) {
+                            setDeleteError(err.message || 'Something went wrong. Try again.')
+                            setDeleting(false)
+                          }
+                        }}
+                        style={{ flex: 1, background: deleteConfirm === 'DELETE' ? 'var(--accent)' : 'var(--bg3)', border: 'none', borderRadius: 'var(--radius-sm)', padding: 10, color: deleteConfirm === 'DELETE' ? '#fff' : 'var(--text-muted)', fontWeight: 700, opacity: deleting ? 0.6 : 1, transition: 'background 0.2s' }}
+                      >{deleting ? 'DELETING...' : 'DELETE ACCOUNT'}</button>
                     </div>
                   </div>
                 )}
