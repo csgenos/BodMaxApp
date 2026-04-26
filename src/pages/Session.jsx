@@ -440,15 +440,7 @@ export default function Session() {
           SAVE AS TEMPLATE
         </button>
       )}
-      {navigator.share && (
-        <button onClick={() => {
-          const vol = Math.round(calcSessionVolume(summary)).toLocaleString()
-          const exNames = (summary.exercises||[]).map(e=>e.name).join(', ')
-          navigator.share({ title: 'BodMax Workout', text: `Just crushed a ${fmtTime(summary.duration||0)} session!\n${vol} lbs total volume\n${exNames}` }).catch(()=>{})
-        }} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 32px', color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, width: '100%', marginBottom: 12 }}>
-          SHARE WORKOUT
-        </button>
-      )}
+      <ShareWorkoutButton summary={summary} newPRs={newPRs} profile={profile} fmtTime={fmtTime} />
       {coachCard && (
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 12, textAlign: 'left' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1042,6 +1034,148 @@ function CardioModal({ onAdd, onClose, distUnit = 'mi', weightKg = 70 }) {
       </div>
       <button onClick={() => duration && onAdd({ type, duration: +duration, distance: distance ? +distance : null, calories: calories ? +calories : null })} style={{ background: '#4a9eb5', border: 'none', borderRadius: 'var(--radius-sm)', padding: 14, width: '100%', color: '#fff', fontWeight: 700, fontSize: 14 }}>ADD CARDIO</button>
     </Modal>
+  )
+}
+
+function ShareWorkoutButton({ summary, newPRs, profile, fmtTime }) {
+  const [sharing, setSharing] = useState(false)
+
+  const generateCard = () => new Promise((resolve) => {
+    const W = 1080, H = 1350
+    const canvas = document.createElement('canvas')
+    canvas.width = W; canvas.height = H
+    const ctx = canvas.getContext('2d')
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#e0161e'
+
+    // Background
+    ctx.fillStyle = '#0a0a0a'
+    ctx.fillRect(0, 0, W, H)
+
+    // Accent strip top
+    ctx.fillStyle = accent
+    ctx.fillRect(0, 0, W, 8)
+
+    // BodMax wordmark
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 52px -apple-system, sans-serif'
+    ctx.fillText('BODMAX', 72, 100)
+    ctx.fillStyle = accent
+    ctx.font = 'bold 26px -apple-system, sans-serif'
+    ctx.fillText('WORKOUT COMPLETE', 72, 145)
+
+    // Date
+    ctx.fillStyle = '#666'
+    ctx.font = '28px -apple-system, sans-serif'
+    ctx.fillText(new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }), 72, 200)
+
+    // Divider
+    ctx.fillStyle = '#222'
+    ctx.fillRect(72, 230, W - 144, 2)
+
+    // Stats row
+    const stats = [
+      { label: 'DURATION', value: fmtTime(summary?.duration || 0) },
+      { label: 'VOLUME', value: `${Math.round(calcSessionVolume(summary || {})).toLocaleString()} ${profile?.unit || 'lbs'}` },
+      { label: 'EXERCISES', value: String((summary?.exercises || []).length) },
+    ]
+    stats.forEach((s, i) => {
+      const x = 72 + i * (W - 144) / 3
+      ctx.fillStyle = '#555'
+      ctx.font = 'bold 22px -apple-system, sans-serif'
+      ctx.fillText(s.label, x, 295)
+      ctx.fillStyle = '#ffffff'
+      ctx.font = 'bold 48px -apple-system, sans-serif'
+      ctx.fillText(s.value, x, 360)
+    })
+
+    // Divider
+    ctx.fillStyle = '#222'
+    ctx.fillRect(72, 400, W - 144, 2)
+
+    // Exercises
+    ctx.fillStyle = '#555'
+    ctx.font = 'bold 24px -apple-system, sans-serif'
+    ctx.fillText('EXERCISES', 72, 455)
+
+    let y = 500
+    const exercises = (summary?.exercises || []).slice(0, 8)
+    exercises.forEach(ex => {
+      const validSets = (ex.sets || []).filter(s => s.weight && s.reps)
+      if (!validSets.length) return
+      const best = validSets.reduce((a, b) => +b.weight > +a.weight ? b : a)
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 30px -apple-system, sans-serif'
+      ctx.fillText(ex.name, 72, y)
+      ctx.fillStyle = '#888'
+      ctx.font = '26px -apple-system, sans-serif'
+      ctx.fillText(`${validSets.length} sets · ${best.weight}×${best.reps} top set`, 72, y + 36)
+      y += 88
+    })
+    if ((summary?.exercises || []).length > 8) {
+      ctx.fillStyle = '#555'
+      ctx.font = '26px -apple-system, sans-serif'
+      ctx.fillText(`+ ${(summary?.exercises || []).length - 8} more exercises`, 72, y)
+      y += 50
+    }
+
+    // PRs
+    if (newPRs?.length > 0) {
+      y = Math.max(y + 20, 1050)
+      ctx.fillStyle = accent
+      ctx.fillRect(72, y, W - 144, 2)
+      ctx.fillStyle = accent
+      ctx.font = 'bold 24px -apple-system, sans-serif'
+      ctx.fillText('🏆 NEW PERSONAL RECORDS', 72, y + 48)
+      newPRs.forEach((pr, i) => {
+        ctx.fillStyle = '#fff'
+        ctx.font = 'bold 28px -apple-system, sans-serif'
+        ctx.fillText(`· ${pr}`, 72, y + 92 + i * 44)
+      })
+    }
+
+    // Footer
+    ctx.fillStyle = '#333'
+    ctx.fillRect(0, H - 80, W, 80)
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 28px -apple-system, sans-serif'
+    ctx.fillText('getbodmax.com', W / 2 - 110, H - 30)
+
+    canvas.toBlob(blob => resolve(blob), 'image/png')
+  })
+
+  const handleShare = async () => {
+    setSharing(true)
+    try {
+      const blob = await generateCard()
+      const file = new File([blob], 'bodmax-workout.png', { type: 'image/png' })
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'BodMax Workout' })
+      } else if (navigator.share) {
+        // Fallback: share text if files not supported
+        const vol = Math.round(calcSessionVolume(summary || {})).toLocaleString()
+        await navigator.share({
+          title: 'BodMax Workout',
+          text: `Just crushed a ${fmtTime(summary?.duration || 0)} session!\n${vol} ${profile?.unit || 'lbs'} total volume\n${(summary?.exercises || []).map(e => e.name).join(', ')}`,
+        })
+      } else {
+        // Download fallback
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = 'bodmax-workout.png'; a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch { /* user cancelled or not supported */ }
+    setSharing(false)
+  }
+
+  return (
+    <button
+      onClick={handleShare}
+      disabled={sharing}
+      style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 32px', color: 'var(--text-dim)', fontWeight: 600, fontSize: 14, width: '100%', marginBottom: 12, opacity: sharing ? 0.6 : 1 }}
+    >
+      {sharing ? 'GENERATING…' : 'SHARE WORKOUT'}
+    </button>
   )
 }
 

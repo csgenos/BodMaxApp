@@ -35,7 +35,7 @@ const STANDARD_LABELS = ['Beginner', 'Novice', 'Intermediate', 'Advanced', 'Elit
 const STANDARD_COLORS = ['#888', '#4a9eb5', '#22c55e', '#f59e0b', 'var(--accent)']
 
 export default function Progress() {
-  const { profile, theme } = useAuth()
+  const { profile, theme, isSubscribed } = useAuth()
   const unit = profile?.unit || 'lbs'
   const distUnit = unit === 'kg' ? 'km' : 'mi'
   const [tab, setTab] = useState('history')
@@ -58,6 +58,8 @@ export default function Progress() {
   const [prHistory, setPrHistory] = useState([])
   const [prHistoryLoading, setPrHistoryLoading] = useState(false)
   const [deletingPR, setDeletingPR] = useState(null) // exercise name pending delete confirm
+  const [analyticsExercise, setAnalyticsExercise] = useState('')
+  const [analyticsHistory, setAnalyticsHistory] = useState([])
   const [error, setError] = useState(null)
   const mounted = useRef(true)
 
@@ -254,13 +256,69 @@ export default function Progress() {
     return { totalVol, totalSets, avgDur, currentStreak, bestStreak, weeklyAvg, topMuscle, milestones }
   }, [sessions, unit])
 
+  // ── PRO ANALYTICS DATA ────────────────────────────────────
+  const volumeTrend = useMemo(() => {
+    const weeks = {}
+    sessions.forEach(s => {
+      const d = new Date(s.date)
+      const ws = new Date(d); ws.setDate(d.getDate() - d.getDay())
+      const key = ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      if (!weeks[key]) weeks[key] = 0
+      weeks[key] += calcSessionVolume(s)
+    })
+    return Object.entries(weeks).slice(-12).map(([week, vol]) => ({ week, vol: Math.round(vol / 1000 * 10) / 10 })).reverse()
+  }, [sessions])
+
+  const muscleVolumeTrend = useMemo(() => {
+    const weeks = {}
+    sessions.forEach(s => {
+      const d = new Date(s.date)
+      const ws = new Date(d); ws.setDate(d.getDate() - d.getDay())
+      const key = ws.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      if (!weeks[key]) { weeks[key] = { week: key }; MUSCLE_GROUPS.forEach(g => weeks[key][g] = 0) }
+      ;(s.exercises || []).forEach(ex => {
+        const g = ex.muscle_group || ex.muscleGroup
+        if (!g || !MUSCLE_GROUPS.includes(g)) return
+        const vol = (ex.sets || []).reduce((sum, st) => sum + ((+st.weight || 0) * (+st.reps || 0)), 0)
+        weeks[key][g] += Math.round(vol / 1000 * 10) / 10
+      })
+    })
+    return Object.values(weeks).slice(-8).reverse()
+  }, [sessions])
+
+  const analyticsExercises = useMemo(() => {
+    const names = new Set()
+    sessions.forEach(s => (s.exercises || []).forEach(ex => { if (ex.name) names.add(ex.name) }))
+    return [...names].sort()
+  }, [sessions])
+
+  useEffect(() => {
+    if (!analyticsExercise) return
+    const pts = []
+    ;[...sessions].reverse().forEach(s => {
+      const ex = (s.exercises || []).find(e => e.name === analyticsExercise)
+      if (!ex) return
+      const working = (ex.sets || []).filter(st => !st.is_warmup && st.weight && st.reps)
+      if (!working.length) return
+      const best = working.reduce((a, b) => +b.weight > +a.weight ? b : a)
+      const est1rm = Math.round(+best.weight * (1 + +best.reps / 30))
+      pts.push({ date: s.date?.split('T')[0], weight: +best.weight, est1rm })
+    })
+    setAnalyticsHistory(pts)
+  }, [analyticsExercise, sessions])
+
+  const MUSCLE_COLORS = {
+    Chest: '#e0161e', Back: '#3b82f6', Shoulders: '#f59e0b',
+    Biceps: '#22c55e', Triceps: '#a855f7', Legs: '#ec4899', Core: '#14b8a6', Glutes: '#f97316',
+  }
+
   return (
     <div className="page" style={{ paddingBottom:24 }}>
       <div style={{ padding:'var(--page-top) 20px 16px' }}>
         <h2 style={{ fontSize:28, fontWeight:800, marginBottom:16 }}>Progress</h2>
         <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:4 }}>
-          {[['history','History'],['weight','Weight'],['body','Body'],['prs','PRs'],['volume','Volume'],['stats','Stats']].map(([key,label]) => (
-            <button key={key} onClick={()=>setTab(key)} style={{ background:tab===key?'var(--accent)':'var(--bg3)', border:'none', borderRadius:100, padding:'9px 18px', color:tab===key?'#fff':'var(--text-dim)', fontSize:14, fontWeight:tab===key?700:500, whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>
+          {[['history','History'],['weight','Weight'],['body','Body'],['prs','PRs'],['volume','Volume'],['stats','Stats'],['analytics','Analytics ✦']].map(([key,label]) => (
+            <button key={key} onClick={()=>setTab(key)} style={{ background:tab===key?'var(--accent)':'var(--bg3)', border:'none', borderRadius:100, padding:'9px 18px', color:tab===key?'#fff':key==='analytics'?'var(--accent)':'var(--text-dim)', fontSize:14, fontWeight:tab===key?700:key==='analytics'?600:500, whiteSpace:'nowrap', flexShrink:0 }}>{label}</button>
           ))}
         </div>
       </div>
@@ -721,6 +779,112 @@ export default function Progress() {
               </>
             )}
           </div>
+        )}
+        {tab === 'analytics' && (
+          !isSubscribed ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <div style={{ fontSize: 40, marginBottom: 16 }}>📊</div>
+              <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Pro Analytics</div>
+              <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: 24, maxWidth: 280, margin: '0 auto 24px' }}>
+                Volume trends, muscle balance over time, and 1RM progression — all in one place. Upgrade to unlock.
+              </div>
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, marginBottom: 20, filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' }}>
+                <div style={{ height: 160, background: 'var(--bg3)', borderRadius: 8 }} />
+              </div>
+            </div>
+          ) : (
+            <div>
+              {/* 12-week volume trend */}
+              <ChartCard title={`VOLUME TREND — 12 WEEKS (k ${unit})`}>
+                {volumeTrend.length > 2 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={volumeTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                      <XAxis dataKey="week" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit="k" />
+                      <Tooltip {...TT} formatter={v => [`${v}k ${unit}`, 'Volume']} />
+                      <Line type="monotone" dataKey="vol" stroke="var(--accent)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--accent)' }} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : <Empty>Log more sessions to see your trend</Empty>}
+              </ChartCard>
+
+              {/* Volume by muscle group — stacked bars */}
+              <ChartCard title="VOLUME BY MUSCLE — 8 WEEKS">
+                {muscleVolumeTrend.length > 1 ? (
+                  <>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={muscleVolumeTrend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                        <XAxis dataKey="week" tick={{ fill: chartTheme.tick, fontSize: 8 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: chartTheme.tick, fontSize: 8 }} axisLine={false} tickLine={false} />
+                        <Tooltip {...TT} />
+                        {MUSCLE_GROUPS.map(g => (
+                          <Bar key={g} dataKey={g} stackId="a" fill={MUSCLE_COLORS[g]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10 }}>
+                      {MUSCLE_GROUPS.map(g => (
+                        <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: 2, background: MUSCLE_COLORS[g], flexShrink: 0 }} />
+                          <span style={{ color: 'var(--text-dim)' }}>{g}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : <Empty>Not enough data yet</Empty>}
+              </ChartCard>
+
+              {/* 1RM progression */}
+              <ChartCard title="EST. 1RM PROGRESSION">
+                <select
+                  value={analyticsExercise}
+                  onChange={e => setAnalyticsExercise(e.target.value)}
+                  style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', color: 'var(--text)', fontSize: 14, marginBottom: 14 }}
+                >
+                  <option value="">Select an exercise…</option>
+                  {analyticsExercises.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                {analyticsExercise && analyticsHistory.length > 1 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={analyticsHistory}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit={` ${unit}`} />
+                      <Tooltip {...TT} formatter={v => [`${v} ${unit}`, 'Est. 1RM']} />
+                      <Line type="monotone" dataKey="est1rm" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 3, fill: '#22c55e' }} activeDot={{ r: 5 }} name="Est. 1RM" />
+                      <Line type="monotone" dataKey="weight" stroke="var(--accent)" strokeWidth={2} dot={{ r: 2, fill: 'var(--accent)' }} strokeDasharray="4 2" name="Top Set" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : analyticsExercise ? (
+                  <Empty>Need more sessions with {analyticsExercise}</Empty>
+                ) : null}
+              </ChartCard>
+
+              {/* Week-by-week load change */}
+              <ChartCard title="WEEK-OVER-WEEK LOAD CHANGE">
+                {volumeTrend.length > 2 ? (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={volumeTrend.slice(1).map((w, i) => {
+                      const prev = volumeTrend[i]
+                      const diff = prev.vol > 0 ? Math.round((w.vol - prev.vol) / prev.vol * 100) : 0
+                      return { week: w.week, diff }
+                    })}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
+                      <XAxis dataKey="week" tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: chartTheme.tick, fontSize: 9 }} axisLine={false} tickLine={false} unit="%" />
+                      <Tooltip {...TT} formatter={v => [`${v > 0 ? '+' : ''}${v}%`, 'vs prev week']} />
+                      <Bar dataKey="diff" radius={[4, 4, 0, 0]}
+                        fill="var(--accent)"
+                        label={false}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <Empty>Not enough data yet</Empty>}
+              </ChartCard>
+            </div>
+          )
         )}
       </div>
     </div>

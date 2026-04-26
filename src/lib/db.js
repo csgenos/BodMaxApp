@@ -20,6 +20,19 @@ export const updateLastActive = async (userId) => {
   await supabase.from('profiles').update({ last_active: new Date().toISOString() }).eq('id', userId)
 }
 
+export const useStreakFreeze = async (userId, currentFreezeDates = []) => {
+  const todayStr = new Date().toISOString().split('T')[0]
+  const updated = [...new Set([...currentFreezeDates, todayStr])]
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ streak_freeze_dates: updated })
+    .eq('id', userId)
+    .select('streak_freeze_dates')
+    .single()
+  if (error) throw error
+  return data.streak_freeze_dates
+}
+
 // ── SESSIONS ─────────────────────────────────────────────
 export const saveSession = async (userId, session) => {
   const completedAt = session.completedAt || new Date().toISOString()

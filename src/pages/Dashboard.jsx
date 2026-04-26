@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getSessions, getDietByDate, getPRs, getDailyInsight } from '../lib/db'
+import { getSessions, getDietByDate, getPRs, getDailyInsight, useStreakFreeze } from '../lib/db'
 import { calcVolumes, getRank, getRankProgress, MUSCLE_GROUPS, calcSessionVolume } from '../lib/ranks'
-import { calcStreak, sessionsThisWeek, sessionsLastWeek, weeklyVolume } from '../lib/streaks'
+import { calcStreak, sessionsThisWeek, sessionsLastWeek, weeklyVolume, canUseFreeze } from '../lib/streaks'
 import { FlameIcon, ZzzIcon, TrophyIcon, AlertIcon, SparkleIcon } from '../lib/icons'
 
+const ONBOARD_KEY = 'bm_onboarded'
 const todayDate = () => new Date().toISOString().split('T')[0]
 
 export default function Dashboard() {
-  const { profile, user, isSubscribed } = useAuth()
+  const { profile, setProfile, user, isSubscribed } = useAuth()
   const nav = useNavigate()
   const unit = profile?.unit || 'lbs'
   const [sessions, setSessions] = useState([])
@@ -18,6 +19,10 @@ export default function Dashboard() {
   const [prs, setPRs] = useState([])
   const [loading, setLoading] = useState(true)
   const [coachInsight, setCoachInsight] = useState(null)
+  const [freezing, setFreezing] = useState(false)
+  const [onboardStep, setOnboardStep] = useState(() =>
+    localStorage.getItem(ONBOARD_KEY) ? null : 0
+  )
   const mounted = useRef(true)
 
   useEffect(() => {
@@ -42,7 +47,9 @@ export default function Dashboard() {
     }
   }, [profile?.id])
 
-  const streak = useMemo(() => calcStreak(sessions), [sessions])
+  const freezeDates = useMemo(() => profile?.streak_freeze_dates || [], [profile?.streak_freeze_dates])
+  const streak = useMemo(() => calcStreak(sessions, freezeDates), [sessions, freezeDates])
+  const freezeAvailable = useMemo(() => canUseFreeze(sessions, freezeDates), [sessions, freezeDates])
   const thisWeek = useMemo(() => sessionsThisWeek(sessions), [sessions])
   const lastWeek = useMemo(() => sessionsLastWeek(sessions), [sessions])
   const volNow = useMemo(() => weeklyVolume(sessions, 0), [sessions])
@@ -94,10 +101,34 @@ export default function Dashboard() {
     return `Today: ${todayMuscles.join(' & ')}`
   })()
 
+  const handleFreeze = async () => {
+    if (!freezeAvailable || freezing) return
+    setFreezing(true)
+    try {
+      const updated = await useStreakFreeze(user.id, freezeDates)
+      setProfile(p => ({ ...p, streak_freeze_dates: updated }))
+    } catch { /* non-fatal */ }
+    setFreezing(false)
+  }
+
+  const dismissOnboard = () => {
+    localStorage.setItem(ONBOARD_KEY, '1')
+    setOnboardStep(null)
+  }
+  const nextOnboard = () => {
+    const next = (onboardStep ?? 0) + 1
+    if (next >= ONBOARD_STEPS.length) { dismissOnboard() } else { setOnboardStep(next) }
+  }
+
   if (loading) return <Loader />
 
   return (
     <div className="page" style={{ paddingBottom: 24 }}>
+      {/* Onboarding overlay */}
+      {onboardStep !== null && (
+        <OnboardingOverlay step={onboardStep} onNext={nextOnboard} onSkip={dismissOnboard} />
+      )}
+
       {/* Header */}
       <div style={{ padding: 'var(--page-top) 20px 20px' }}>
         <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 4 }}>
@@ -120,9 +151,11 @@ export default function Dashboard() {
       )}
 
       {/* Weekly stats */}
-      <div style={{ padding: '0 20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+      <div style={{ padding: '0 20px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
         <StatCard>
-          <span style={{ color: streak.current > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{streak.current > 0 ? <FlameIcon size={24} /> : <ZzzIcon size={24} />}</span>
+          <span style={{ color: streak.current > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+            {streak.current > 0 ? <FlameIcon size={24} /> : <ZzzIcon size={24} />}
+          </span>
           <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{streak.current}</div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Streak</div>
         </StatCard>
@@ -147,6 +180,24 @@ export default function Dashboard() {
           )}
         </StatCard>
       </div>
+
+      {/* Streak freeze */}
+      {freezeAvailable && streak.current > 0 && (
+        <div style={{ margin: '0 20px 16px' }}>
+          <button
+            onClick={handleFreeze}
+            disabled={freezing}
+            style={{ width: '100%', background: 'linear-gradient(135deg, #1a3a6b, #2563eb)', border: 'none', borderRadius: 'var(--radius)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', opacity: freezing ? 0.7 : 1 }}
+          >
+            <span style={{ fontSize: 22 }}>🧊</span>
+            <div style={{ textAlign: 'left', flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>Protect your {streak.current}-day streak</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>Use a freeze — you get one per week</div>
+            </div>
+            <div style={{ color: '#fff', fontSize: 18 }}>→</div>
+          </button>
+        </div>
+      )}
 
       {/* Nutrition Today */}
       <Section label="Nutrition Today">
@@ -272,6 +323,61 @@ export default function Dashboard() {
           </div>
         )}
       </Section>
+    </div>
+  )
+}
+
+const ONBOARD_STEPS = [
+  {
+    emoji: '👋',
+    title: 'Welcome to BodMax',
+    body: 'This is your command center. Track sessions, PRs, nutrition, and your streak — all in one place.',
+    cta: 'Next',
+  },
+  {
+    emoji: '🏋️',
+    title: 'Log your first session',
+    body: 'Hit the Train tab at the bottom to start a workout. Every set counts toward your streak.',
+    cta: 'Next',
+    highlight: 'Train',
+  },
+  {
+    emoji: '✨',
+    title: 'Try your free AI Coach',
+    body: 'You get 3 free messages to ask your AI coach anything — nutrition, form, programming. Tap Coach below.',
+    cta: "Let's go",
+    highlight: 'Coach',
+  },
+]
+
+function OnboardingOverlay({ step, onNext, onSkip }) {
+  const s = ONBOARD_STEPS[step]
+  if (!s) return null
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: '0 0 100px' }}>
+      <div style={{ background: 'var(--bg2)', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 420, margin: '0 16px', boxShadow: '0 -4px 40px rgba(0,0,0,0.4)' }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>{s.emoji}</div>
+          <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 8 }}>{s.title}</div>
+          <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.6 }}>{s.body}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+          {ONBOARD_STEPS.map((_, i) => (
+            <div key={i} style={{ flex: i === step ? 2 : 1, height: 3, borderRadius: 2, background: i === step ? 'var(--accent)' : 'var(--border)', transition: 'flex 0.3s' }} />
+          ))}
+        </div>
+        <button
+          onClick={onNext}
+          style={{ width: '100%', background: 'var(--accent)', border: 'none', borderRadius: 12, padding: '14px 0', color: '#fff', fontWeight: 800, fontSize: 16 }}
+        >
+          {s.cta}
+        </button>
+        {step < ONBOARD_STEPS.length - 1 && (
+          <button onClick={onSkip} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 13, padding: '10px 0', marginTop: 4 }}>
+            Skip tour
+          </button>
+        )}
+      </div>
     </div>
   )
 }

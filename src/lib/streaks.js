@@ -1,7 +1,14 @@
-export function calcStreak(sessions) {
-  if (!sessions.length) return { current: 0, best: 0 }
-  const dates = [...new Set(sessions.map(s => (s.date || '').split('T')[0]).filter(Boolean))].sort()
-  const dateSet = new Set(dates)
+// freezeDates: array of ISO date strings like ['2026-04-25'] treated as workout days
+export function calcStreak(sessions, freezeDates = []) {
+  const allDates = [
+    ...sessions.map(s => (s.date || '').split('T')[0]),
+    ...freezeDates,
+  ].filter(Boolean)
+
+  if (!allDates.length) return { current: 0, best: 0 }
+
+  const dateSet = new Set(allDates)
+  const dates = [...dateSet].sort()
 
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const todayStr = today.toISOString().split('T')[0]
@@ -46,4 +53,31 @@ export function weeklyVolume(sessions, weeksAgo = 0) {
     .filter(s => { const d = new Date(s.date); return d >= start && d <= end })
     .reduce((sum, s) => sum + (s.exercises || []).reduce((es, ex) =>
       es + (ex.sets || []).reduce((ss, set) => ss + ((+set.weight || 0) * (+set.reps || 0)), 0), 0), 0)
+}
+
+// Returns the ISO week string (YYYY-Www) for a date, used to enforce once-per-week freeze
+export function isoWeek(date = new Date()) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7))
+  const yearStart = new Date(d.getFullYear(), 0, 1)
+  const week = Math.ceil(((d - yearStart) / 86400000 + 1) / 7)
+  return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+// True if the user can use a freeze right now:
+//   - Has an active streak
+//   - Has NOT logged a session today
+//   - Has NOT used a freeze this ISO week
+export function canUseFreeze(sessions, freezeDates = []) {
+  const todayStr = new Date().toISOString().split('T')[0]
+  const hasSessionToday = sessions.some(s => s.date?.split('T')[0] === todayStr)
+  if (hasSessionToday) return false
+
+  const { current } = calcStreak(sessions, freezeDates)
+  if (current === 0) return false
+
+  const currentWeek = isoWeek()
+  const usedThisWeek = freezeDates.some(d => isoWeek(new Date(d)) === currentWeek)
+  return !usedThisWeek
 }
