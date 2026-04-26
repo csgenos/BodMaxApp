@@ -207,6 +207,11 @@ export const getPRs = async (userId) => {
   if (error) throw error
   return data || []
 }
+export const deletePR = async (userId, exerciseName) => {
+  const { error } = await supabase.from('personal_records').delete()
+    .eq('user_id', userId).eq('exercise', exerciseName)
+  if (error) throw error
+}
 export const checkAndUpdatePR = async (userId, exercise, muscleGroup, weight, reps) => {
   const { data: ex } = await supabase.from('personal_records').select('*').eq('user_id', userId).eq('exercise', exercise).maybeSingle()
   const date = new Date().toISOString()
@@ -439,6 +444,7 @@ export const getLeaderboard = async (userId, currentProfile) => {
     .select('user_id, date')
     .in('user_id', allIds)
     .not('completed_at', 'is', null)
+    .gte('duration', 300)
     .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
 
   const rows = data || []

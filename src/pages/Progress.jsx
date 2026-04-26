@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   getWeightLog, addWeight, getPRs, getSessions,
   getBodyMeasurements, addBodyMeasurement, deleteBodyMeasurement,
-  checkAndUpdatePR, getExerciseProgress,
+  checkAndUpdatePR, getExerciseProgress, deletePR,
 } from '../lib/db'
 import { calcVolumes, getRank, MUSCLE_GROUPS, EXERCISES, calcSessionVolume } from '../lib/ranks'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
@@ -57,6 +57,7 @@ export default function Progress() {
   const [selectedPR, setSelectedPR] = useState(null) // exercise name for drill-down
   const [prHistory, setPrHistory] = useState([])
   const [prHistoryLoading, setPrHistoryLoading] = useState(false)
+  const [deletingPR, setDeletingPR] = useState(null) // exercise name pending delete confirm
   const [error, setError] = useState(null)
   const mounted = useRef(true)
 
@@ -136,6 +137,15 @@ export default function Progress() {
       }
     } catch (e) { if (mounted.current) setError(e.message) }
     setPrSaving(false)
+  }
+
+  const handleDeletePR = async (exerciseName) => {
+    try {
+      await deletePR(profile.id, exerciseName)
+      setPRs(await getPRs(profile.id))
+      if (selectedPR === exerciseName) { setSelectedPR(null); setPrHistory([]) }
+    } catch (e) { if (mounted.current) setError(e.message) }
+    setDeletingPR(null)
   }
 
   const chartTheme = useMemo(() => theme === 'light'
@@ -425,8 +435,8 @@ export default function Progress() {
                   <div className="label" style={{ color: 'var(--accent)', marginBottom: 8 }}>{g.toUpperCase()}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {gPRs.map(pr => (
-                      <div key={pr.id} className="card" style={{ padding: 14, cursor: 'pointer' }} onClick={() => handleSelectPR(pr)}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div key={pr.id} className="card" style={{ padding: 14 }}>
+                        <div onClick={() => handleSelectPR(pr)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                           <div>
                             <div style={{ fontWeight: 600, fontSize: 14 }}>{pr.exercise}</div>
                             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--mono)' }}>{new Date(pr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</div>
@@ -436,9 +446,18 @@ export default function Progress() {
                               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{pr.weight}</div>
                               <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{pr.reps} reps · {unit}</div>
                             </div>
-                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedPR === pr.exercise ? '▲' : '▼'}</span>
+                            <button onClick={e => { e.stopPropagation(); setDeletingPR(deletingPR === pr.exercise ? null : pr.exercise) }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, padding: '0 2px', lineHeight: 1 }}>×</button>
                           </div>
                         </div>
+                        {deletingPR === pr.exercise && (
+                          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>Delete this PR? It will return if you log this exercise again.</div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => setDeletingPR(null)} style={{ flex: 1, background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '9px', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600 }}>Cancel</button>
+                              <button onClick={() => handleDeletePR(pr.exercise)} style={{ flex: 1, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '9px', color: '#fff', fontSize: 13, fontWeight: 700 }}>Delete</button>
+                            </div>
+                          </div>
+                        )}
                         {selectedPR === pr.exercise && (
                           <div style={{ marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                             {prHistoryLoading ? (
