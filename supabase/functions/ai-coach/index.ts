@@ -10,9 +10,9 @@ const CORS = {
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') })
 
-const PAID_MSG_LIMIT     = 50  // messages/day for subscribers
+const PAID_MSG_LIMIT     = 30  // messages/day for subscribers
 const TRIAL_MSG_LIMIT    = 3   // lifetime asks for free trial
-const PAID_SESSION_LIMIT = 30  // post-session analyses/day for subscribers
+const PAID_SESSION_LIMIT = 3   // post-session analyses/day for subscribers
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -148,20 +148,63 @@ async function handlePostSession(supabase: any, userId: string, sessionSummary: 
     .gte('created_at', dayStart.toISOString())
   if ((count || 0) >= PAID_SESSION_LIMIT) return json({ insight: null })
 
-  const systemPrompt = `You are BodMax AI Coach. Analyze this workout and give ONE specific, actionable insight.
-Respond with valid JSON only: {"headline": "short title", "body": "2-3 sentence analysis", "action": "one specific tip for next session"}
-No markdown, no extra text — pure JSON.`
+  const systemPrompt = `You are BodMax AI Coach — an expert strength and conditioning coach.
+Analyze the athlete's workout in full detail and respond with valid JSON only.
+
+JSON shape (all fields required):
+{
+  "headline": "punchy 4-6 word title for the session",
+  "rating": <integer 1-10 overall session quality>,
+  "summary": "2-3 sentence overall assessment — volume, intensity, execution",
+  "strengths": ["up to 3 specific things done well"],
+  "improvements": ["up to 3 specific, actionable things to fix next time"],
+  "muscleBalance": "1-2 sentences on muscle group balance or imbalances observed",
+  "nextSession": "concrete recommendation for what to do next session — exercise, weight, rep target, or focus",
+  "action": "the single most important thing to do before the next workout"
+}
+
+No markdown fences, no extra keys, no extra text — pure JSON only.`
+
+  const userContent = `Athlete: ${profile?.name || 'User'}
+Goal: ${profile?.goal || 'build muscle'}
+Unit: ${profile?.unit || 'lbs'}
+
+Workout data:
+${sessionSummary}`
 
   const resp = await anthropic.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 300,
+    model: 'claude-sonnet-4-6',
+    max_tokens: 900,
     system: systemPrompt,
-    messages: [{ role: 'user', content: `Workout for ${profile?.name || 'user'} (goal: ${profile?.goal || 'build muscle'}, unit: ${profile?.unit || 'lbs'}):\n${sessionSummary}` }],
+    messages: [{ role: 'user', content: userContent }],
   })
 
   const text = resp.content[0].type === 'text' ? resp.content[0].text : '{}'
-  let insight = { headline: 'Nice work!', body: 'You completed your session.', action: 'Keep the momentum going.' }
-  try { insight = JSON.parse(text) } catch { /* fallback to defaults */ }
+  let insight = {
+    headline: 'Session Complete',
+    rating: 7,
+    summary: 'You put in the work today.',
+    strengths: ['Showed up and completed the session'],
+    improvements: ['Track weights more precisely next time'],
+    muscleBalance: 'Continue monitoring balance across muscle groups.',
+    nextSession: 'Aim to add small weight increases on your main lifts.',
+    action: 'Log your sleep and nutrition tonight to support recovery.',
+  }
+  try {
+    const parsed = JSON.parse(text)
+    // Ensure arrays are actually arrays
+    if (!Array.isArray(parsed.strengths)) parsed.strengths = [parsed.strengths].filter(Boolean)
+    if (!Array.isArray(parsed.improvements)) parsed.improvements = [parsed.improvements].filter(Boolean)
+    insight = parsed
+  } catch { /* fallback to defaults */ }
+
+  // Cache the insight so it can be retrieved without re-calling the API
+  await supabase.from('coach_insights').insert({
+    user_id: userId,
+    type: 'post_session',
+    content: JSON.stringify(insight),
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  })
 
   return json({ insight })
 }

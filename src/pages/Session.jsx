@@ -450,14 +450,58 @@ export default function Session() {
         </button>
       )}
       {coachCard && (
-        <div style={{ background: 'var(--bg2)', borderLeft: '3px solid var(--accent)', borderRadius: 12, padding: 16, marginBottom: 12, textAlign: 'left' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <span style={{ color: 'var(--accent)' }}><SparkleIcon size={14} /></span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>COACH ANALYSIS</span>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: 18, marginBottom: 12, textAlign: 'left' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: 'var(--accent)' }}><SparkleIcon size={14} /></span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>COACH ANALYSIS</span>
+            </div>
+            {coachCard.rating != null && (
+              <div style={{ background: 'var(--accent)', color: '#fff', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 800 }}>
+                {coachCard.rating}/10
+              </div>
+            )}
           </div>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{coachCard.headline}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 6 }}>{coachCard.body}</div>
-          {coachCard.action && <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>→ {coachCard.action}</div>}
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8 }}>{coachCard.headline}</div>
+          {coachCard.summary && <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: 12 }}>{coachCard.summary}</div>}
+          {coachCard.strengths?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#22c55e', letterSpacing: 1, marginBottom: 5 }}>STRENGTHS</div>
+              {coachCard.strengths.map((s, i) => (
+                <div key={i} style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, display: 'flex', gap: 6, marginBottom: 3 }}>
+                  <span style={{ color: '#22c55e', flexShrink: 0 }}>✓</span>{s}
+                </div>
+              ))}
+            </div>
+          )}
+          {coachCard.improvements?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#f59e0b', letterSpacing: 1, marginBottom: 5 }}>IMPROVE</div>
+              {coachCard.improvements.map((s, i) => (
+                <div key={i} style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, display: 'flex', gap: 6, marginBottom: 3 }}>
+                  <span style={{ color: '#f59e0b', flexShrink: 0 }}>↑</span>{s}
+                </div>
+              ))}
+            </div>
+          )}
+          {coachCard.muscleBalance && (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 10, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              <span style={{ fontWeight: 700, color: 'var(--text)' }}>Balance: </span>{coachCard.muscleBalance}
+            </div>
+          )}
+          {coachCard.nextSession && (
+            <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 4 }}>NEXT SESSION</div>
+              <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }}>{coachCard.nextSession}</div>
+            </div>
+          )}
+          {coachCard.action && (
+            <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>→ {coachCard.action}</div>
+          )}
+          {/* Fallback for old single-field format */}
+          {!coachCard.summary && coachCard.body && (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>{coachCard.body}</div>
+          )}
         </div>
       )}
       <button onClick={() => { setSummary(null); setNewPRs([]); setCoachCard(null); setPrCelebration(null); setView('list') }} style={{ background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '14px 32px', color: '#fff', fontWeight: 700, fontSize: 15, width: '100%' }}>DONE</button>
